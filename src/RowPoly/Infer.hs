@@ -9,36 +9,38 @@ module RowPoly.Infer
   , TypeError(..)
   ) where
 
-import Protolude hiding (Constraint, TypeError)
+import           Protolude hiding (Constraint, TypeError)
 
 import qualified Data.Set as Set
-import Data.Set ((\\))
-import Data.List (lookup)
+import           Data.Set ((\\))
+import           Data.List (lookup)
 
-import Unbound.Generics.LocallyNameless hiding (Subst)
-import Unbound.Generics.LocallyNameless.Internal.Fold
+import           Unbound.Generics.LocallyNameless hiding (Subst)
+import           Unbound.Generics.LocallyNameless.Internal.Fold
 
-import RowPoly.Subst (Subst)
+import           RowPoly.Subst (Subst)
 import qualified RowPoly.Subst as Subst
-import RowPoly.Tree
-import RowPoly.Type
-import RowPoly.NameSupply
+import           RowPoly.Tree
+import           RowPoly.Type
+import           RowPoly.NameSupply
 
 data TypeError
   = ValueNotFound VarName
   | UnificationError Ty Ty
   | InfiniteTypeError Ty Ty
 
-newtype InferM a = InferM (ExceptT TypeError (NameSupplyT FreshM) a)
+newtype Infer a = Infer (ExceptT TypeError (NameSupplyT FreshM) a)
   deriving (Functor, Applicative, Monad, Fresh, MonadNameSupply, MonadError TypeError)
 
 type InferResult = Either TypeError
 
-runInferM :: InferM a -> InferResult a
-runInferM (InferM x) = runFreshM (runNameSupplyT (runExceptT x))
+data Scheme = Scheme [TyName] Ty
+
+runInfer :: Infer a -> InferResult a
+runInfer (Infer x) = runFreshM (runNameSupplyT (runExceptT x))
 
 infer :: Tree -> InferResult Ty
-infer tree = runInferM $ do
+infer tree = runInfer $ do
   (ty, cs) <- collect [] tree
   sub <- unify cs
   pure $ Subst.apply sub ty
@@ -54,9 +56,7 @@ freshTyVar = TyVar <$> freshTyName
 substScheme :: Subst -> Scheme -> Scheme
 substScheme ss (Scheme ps tp) = Scheme ps (Subst.apply ss tp)
 
-data Scheme = Scheme [TyName] Ty
-
-instantiate :: Scheme -> InferM Ty
+instantiate :: Scheme -> Infer Ty
 instantiate (Scheme params tp) = do
   freshVars <- replicateM (length params) freshTyVar
   let subs = params `zip` freshVars
@@ -91,7 +91,7 @@ a <-> b = (a, b)
 (+:) :: Ord a => a -> Set a -> Set a
 (+:) = Set.insert
 
-collect :: Env -> Tree -> InferM (Ty, Set Constraint)
+collect :: Env -> Tree -> Infer (Ty, Set Constraint)
 collect env term =
   case term of
     Tru  -> pure (TyBool, Set.empty)
@@ -176,10 +176,10 @@ collect env term =
       let c'' = Set.singleton (tpX <-> tpV)
       pure (tp, c'' <> c' <> c)
 
-unify :: Set Constraint -> InferM Subst
+unify :: Set Constraint -> Infer Subst
 unify = go mempty . Set.toList
   where
-    go :: Subst -> [Constraint] -> InferM Subst
+    go :: Subst -> [Constraint] -> Infer Subst
     go acc [] =
       pure acc
 

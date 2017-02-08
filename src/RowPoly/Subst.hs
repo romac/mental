@@ -1,22 +1,17 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module RowPoly.Subst where
 
-import Protolude
+import           Protolude
 
 import qualified Data.Map.Strict as Map
 
-import Unbound.Generics.LocallyNameless (substs)
+import           Unbound.Generics.LocallyNameless (substs)
 
-import RowPoly.Type
+import           RowPoly.Type
 
 newtype Subst = Subst (Map TyName Ty)
-
-instance Semigroup Subst where
-  Subst a <> Subst b = Subst (Map.union a b)
-
-instance Monoid Subst where
-  mempty = Subst Map.empty
-  mappend a b = a <> b
+  deriving (Semigroup, Monoid)
 
 apply :: Subst -> Ty -> Ty
 apply (Subst s) = substs (Map.toList s)

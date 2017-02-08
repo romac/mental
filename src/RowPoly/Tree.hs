@@ -1,10 +1,16 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module RowPoly.Tree
   ( VarName
   , Tree(..)
+  , isValue
+  , isNumericValue
+  , pattern IsValue
+  , pattern IsNumericValue
   ) where
 
 import           Protolude
@@ -42,4 +48,21 @@ instance Subst Ty Tree where
 
 instance Subst Tree Ty where
   isvar _ = Nothing
+
+isValue :: Tree -> Bool
+isValue Tru            = True
+isValue Fals           = True
+isValue (Abs _ _)      = True
+isValue v              = isNumericValue v
+
+isNumericValue :: Tree -> Bool
+isNumericValue Zero     = True
+isNumericValue (Succ t) = isNumericValue t
+isNumericValue _        = False
+
+pattern IsValue :: Tree
+pattern IsValue <- (isValue -> True)
+
+pattern IsNumericValue :: Tree
+pattern IsNumericValue <- (isNumericValue -> True)
 

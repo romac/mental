@@ -1,8 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module RowPoly.Eval
   ( eval
@@ -10,14 +8,14 @@ module RowPoly.Eval
   , EvalError(..)
   ) where
 
-import Protolude hiding (head)
+import           Protolude hiding (head)
 
-import Control.Monad.Except
-import Data.List.NonEmpty
+import           Control.Monad.Except
+import           Data.List.NonEmpty
 
-import Unbound.Generics.LocallyNameless
+import           Unbound.Generics.LocallyNameless
 
-import RowPoly.Tree
+import           RowPoly.Tree
 
 data EvalError
   = NoRuleApplies Tree
@@ -25,51 +23,34 @@ data EvalError
 
 type EvalResult = Either EvalError
 
-newtype EvalM a = EvalM (ExceptT EvalError FreshM a)
+newtype Eval a = Eval (ExceptT EvalError FreshM a)
   deriving (Functor, Applicative, Monad, Fresh, MonadError EvalError)
 
-runEvalM :: EvalM a -> EvalResult a
-runEvalM (EvalM x) = runFreshM (runExceptT x)
+runEval :: Eval a -> EvalResult a
+runEval (Eval x) = runFreshM (runExceptT x)
 
 eval :: Tree -> EvalResult Tree
 eval tree = last <$> traceEval tree
 
 traceEval :: Tree -> EvalResult (NonEmpty Tree)
 traceEval tree =
-  case runEvalM (path tree eval') of
+  case runEval (path tree eval') of
     Right ts               -> Right ts
     Left (NoRuleApplies t) -> Right (t :| [])
     Left err               -> Left err
 
-path :: Tree -> (Tree -> EvalM Tree) -> EvalM (NonEmpty Tree)
+path :: Tree -> (Tree -> Eval Tree) -> Eval (NonEmpty Tree)
 path t f = do
   t' <- f t
   ts <- path t' f
   pure (t <| ts)
   `catchError` handleError
   where
-    handleError :: EvalError -> EvalM (NonEmpty Tree)
+    handleError :: EvalError -> Eval (NonEmpty Tree)
     handleError (NoRuleApplies _) = pure (t :| [])
     handleError err               = throwError err
 
-isValue :: Tree -> Bool
-isValue Tru            = True
-isValue Fals           = True
-isValue (Abs _ _)      = True
-isValue v              = isNumericValue v
-
-isNumericValue :: Tree -> Bool
-isNumericValue Zero     = True
-isNumericValue (Succ t) = isNumericValue t
-isNumericValue _        = False
-
-pattern IsValue :: Tree
-pattern IsValue <- (isValue -> True)
-
-pattern IsNumericValue :: Tree
-pattern IsNumericValue <- (isNumericValue -> True)
-
-eval' :: Tree -> EvalM Tree
+eval' :: Tree -> Eval Tree
 eval' (Var name)                     = throwError (VarNotInScope name)
 eval' (IsZero Zero)                  = pure Tru
 eval' (IsZero (Succ IsNumericValue)) = pure Fals
