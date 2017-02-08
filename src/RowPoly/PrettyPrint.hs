@@ -19,29 +19,33 @@ import           RowPoly.Type
 import           RowPoly.Eval (EvalError(..))
 import           RowPoly.Infer (TypeError(..))
 
--- ppNat :: Applicative m => Tree -> m Doc
--- ppNat = text . T.pack . show . natToInt
---   where
---     natToInt Zero     = 0
---     natToInt (Succ n) = natToInt n + 1
---     natToInt (Pred n) = natToInt n - 1
---
--- ppMaybe :: Applicative m => Maybe a -> (a -> m Doc) -> m Doc
--- ppMaybe Nothing _   = empty
--- ppMaybe (Just x) pp = pp x
+ppNat :: Applicative m => Tree -> m Doc
+ppNat = text . T.pack . show . natToInt
+  where
+    natToInt :: Tree -> Int
+    natToInt Zero     = 0
+    natToInt (Succ n) = natToInt n + 1
+    natToInt (Pred n) = natToInt n - 1
+    natToInt _        = -1
+
+bullet :: Applicative m => m Doc -> m Doc
+bullet = (text "-" <+>)
+
+errorDoc :: Applicative m => m Doc -> m Doc
+errorDoc err = nest 4 (text "[ERROR]" <$> bullet err)
 
 prettyEvalError :: EvalError -> Doc
-prettyEvalError err = runFreshM (nest 4 ("[ERROR]" <$> pp err))
+prettyEvalError err = runFreshM (nest 4 (errorDoc (pp err)))
   where
-    pp (NoRuleApplies t) = "•" <+> "Cannot further reduce term:" <+> pprint t
-    pp (VarNotInScope n) = "•" <+> "Variable not in scope:" <+> ppName n
+    pp (NoRuleApplies t) = "Cannot further reduce term:" <+> pprint t
+    pp (VarNotInScope n) = "Variable not in scope:" <+> ppName n
 
 prettyTypeError :: TypeError -> Doc
-prettyTypeError err = runFreshM (nest 4 ("[ERROR]" <$> pp err))
+prettyTypeError err = runFreshM (errorDoc (bullet (pp err)))
   where
-    pp (InfiniteTypeError s t) = "•" <+> "Cannot unify the infinite type:" <+> ppType s <+> "=" <+> ppType t
-    pp (UnificationError s t) = "•" <+> "Cannot unify:" <+> ppType s <+> "with" <+> ppType t
-    pp (ValueNotFound n) = "•" <+> "Value not found:" <+> ppName n
+    pp (InfiniteTypeError s t) = "Cannot unify the infinite type:" <+> ppType s <+> " = " <+> ppType t
+    pp (UnificationError s t)  = "Cannot unify:" <+> ppType s <+> "with" <+> ppType t
+    pp (ValueNotFound n)       = "Value not found:" <+> ppName n
 
 prettyTree :: Tree -> Doc
 prettyTree = runFreshM . pprint
@@ -64,18 +68,19 @@ ppType (TyFun a@(TyFun _ _) b) = parens (ppType a) <+> text "->" <+> ppType b
 ppType (TyFun a b) = ppType a <+> text "->" <+> ppType b
 
 pprint :: Tree -> FreshM Doc
-pprint Tru        = "True"
-pprint Fals       = "False"
-pprint Zero       = "0"
-pprint (Succ t)   = "succ" <+> pprint t
-pprint (Pred t)   = "pred" <+> pprint t
-pprint (IsZero t) = "iszero" <+> pprint t
-pprint (Var n)    = ppName n
+pprint Tru              = "True"
+pprint Fals             = "False"
+pprint n@IsNumericValue = ppNat n
+pprint Zero             = "0"
+pprint (Succ t)         = "succ" <+> pprint t
+pprint (Pred t)         = "pred" <+> pprint t
+pprint (IsZero t)       = "iszero" <+> pprint t
+pprint (Var n)          = ppName n
 
 pprint (If cnd thn els) =
   "if" <+> pprint cnd
-  <+> "then" <+> pprint thn
-  <+> "else" <+> pprint els
+       <+> "then" <+> pprint thn
+       <+> "else" <+> pprint els
 
 pprint (Abs tp bnd) = do
   (x, body) <- unbind bnd
