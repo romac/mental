@@ -11,7 +11,6 @@ module RowPoly.Infer
 
 import Protolude hiding (Constraint, TypeError)
 
--- import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Set ((\\))
 import Data.List (lookup)
@@ -19,6 +18,8 @@ import Data.List (lookup)
 import Unbound.Generics.LocallyNameless hiding (Subst)
 import Unbound.Generics.LocallyNameless.Internal.Fold
 
+import RowPoly.Subst (Subst)
+import qualified RowPoly.Subst as Subst
 import RowPoly.Tree
 import RowPoly.Type
 import RowPoly.NameSupply
@@ -40,7 +41,7 @@ infer :: Tree -> InferResult Ty
 infer tree = runInferM $ do
   (ty, cs) <- collect [] tree
   sub <- unify cs
-  pure $ substs sub ty
+  pure $ Subst.apply sub ty
 
 freshTyName :: (Fresh m, MonadNameSupply m) => m TyName
 freshTyName = do
@@ -50,10 +51,8 @@ freshTyName = do
 freshTyVar :: (Fresh m, MonadNameSupply m) => m Ty
 freshTyVar = TyVar <$> freshTyName
 
-type Subst = [(TyName, Ty)]
-
 substScheme :: Subst -> Scheme -> Scheme
-substScheme ss (Scheme ps tp) = Scheme ps (substs ss tp)
+substScheme ss (Scheme ps tp) = Scheme ps (Subst.apply ss tp)
 
 data Scheme = Scheme [TyName] Ty
 
@@ -89,6 +88,9 @@ type Constraint = (Ty, Ty)
 
 (<->) :: a -> b -> (a, b)
 a <-> b = (a, b)
+
+(+:) :: Ord a => a -> Set a -> Set a
+(+:) = Set.insert
 
 collect :: Env -> Tree -> InferM (Ty, [Constraint])
 collect env term =
@@ -145,8 +147,8 @@ collect env term =
       s2        <- unify c2
       freshTp <- freshTyVar
 
-      let funTp = TyFun (substs s1 tp2) freshTp
-      let c3 = [(substs s2 tp1 <-> funTp)]
+      let funTp = TyFun (Subst.apply s1 tp2) freshTp
+      let c3 = [(Subst.apply s2 tp1 <-> funTp)]
 
       pure (freshTp, c3 ++ c2 ++ c1)
 
@@ -154,7 +156,7 @@ collect env term =
       (tpS, c) <- collect env v
       s       <- unify c
 
-      let tpT    = substs s tpS
+      let tpT    = Subst.apply s tpS
       let env'   = substEnv s env
       let scheme = generalize tpT env'
 
@@ -175,7 +177,7 @@ collect env term =
       pure (tp, c'' ++ c' ++ c)
 
 unify :: [Constraint] -> InferM Subst
-unify = go []
+unify = go mempty
   where
     go :: Subst -> [Constraint] -> InferM Subst
     go acc [] =
@@ -183,7 +185,8 @@ unify = go []
 
     go acc (c : cs) =
       case c of
-        (s, t) | s == t -> go acc cs
+        (s, t) | s == t ->
+          go acc cs
 
         (s@(TyVar n), t) | tyContains t n ->
           throwError (InfiniteTypeError s t)
@@ -192,23 +195,19 @@ unify = go []
           throwError (InfiniteTypeError t s)
 
         (s, TyVar n) ->
-          let sub = [(n, s)]
-           in go (sub ++ acc) (substPair sub <$> cs)
+          let sub = Subst.singleton n s
+           in go (sub <> acc) (Subst.onPairs sub cs)
 
         (TyVar n, t) ->
-          let sub = [(n, t)]
-           in go (sub ++ acc) (substPair sub <$> cs)
+          let sub = Subst.singleton n t
+           in go (sub <> acc) (Subst.onPairs sub cs)
 
         (TyFun a b, TyFun a' b') -> do
           s1 <- unify ((a, a') : cs)
-          s2 <- unify (substPair s1 (b, b') : cs)
-          let s = s1 ++ s2
+          s2 <- unify (Subst.onPair s1 (b, b') : cs)
 
-          go (s ++ acc) cs
+          go (s1 <> s2 <> acc) cs
 
         (s, t) ->
           throwError (UnificationError s t)
-
-substPair :: Subst -> Constraint -> Constraint
-substPair sub (a, b) = (substs sub a, substs sub b)
 
