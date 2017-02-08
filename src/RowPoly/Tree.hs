@@ -2,13 +2,18 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module RowPoly.Tree where
+module RowPoly.Tree
+  ( VarName
+  , Tree(..)
+  ) where
 
-import Data.Typeable (Typeable)
-import GHC.Generics  (Generic)
-import Unbound.Generics.LocallyNameless
+import           Protolude
 
-import RowPoly.Type
+import           Data.Typeable (Typeable)
+import           GHC.Generics  (Generic)
+import           Unbound.Generics.LocallyNameless
+
+import           RowPoly.Type
 
 type VarName = Name Tree
 
@@ -21,9 +26,9 @@ data Tree
   | IsZero Tree
   | If Tree Tree Tree
   | Var VarName
-  | Abs (Maybe Type) (Bind VarName Tree)
+  | Abs (Maybe Ty) (Bind VarName Tree)
   | App Tree Tree
-  | Let (Maybe Type) Tree (Bind VarName Tree)
+  | Let (Maybe Ty) Tree (Bind VarName Tree)
   deriving (Show, Generic, Typeable)
 
 instance Alpha Tree
@@ -32,9 +37,9 @@ instance Subst Tree Tree where
   isvar (Var x) = Just (SubstName x)
   isvar _       = Nothing
 
-instance Subst Type Tree where
+instance Subst Ty Tree where
   isvar _ = Nothing
 
-instance Subst Tree Type where
+instance Subst Tree Ty where
   isvar _ = Nothing
 

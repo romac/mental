@@ -2,24 +2,29 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module RowPoly.Type where
+module RowPoly.Type
+  ( TyName
+  , Ty(..)
+  ) where
 
-import Data.Typeable (Typeable)
-import GHC.Generics  (Generic)
-import Unbound.Generics.LocallyNameless
+import           Protolude
 
-type TyName = Name Type
+import           Data.Typeable (Typeable)
+import           GHC.Generics  (Generic)
+import           Unbound.Generics.LocallyNameless
 
-data Type
+type TyName = Name Ty
+
+data Ty
   = TyVar TyName
-  | TyFun Type Type
+  | TyFun Ty Ty
   | TyNat
   | TyBool
   deriving (Eq, Ord, Show, Generic, Typeable)
 
-instance Alpha Type
+instance Alpha Ty
 
-instance Subst Type Type where
+instance Subst Ty Ty where
   isvar (TyVar x) = Just (SubstName x)
   isvar _         = Nothing
 

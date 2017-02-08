@@ -1,18 +1,17 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module RowPoly.Parser where
+module RowPoly.Parser
+  ( parser
+  ) where
 
-import           Control.Monad (void)
-import           Data.Monoid ((<>))
-import           Data.Maybe (fromMaybe)
+import           Protolude
+
 import           Data.Foldable (foldl')
 
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Text.Megaparsec
-import           Text.Megaparsec.Char
 import           Text.Megaparsec.Text
 
 import           Unbound.Generics.LocallyNameless
@@ -36,7 +35,7 @@ factor =  reserved "True"  *> pure Tru
     <|> reserved "succ"   *> (Succ   <$> term)
     <|> reserved "pred"   *> (Pred   <$> term)
     <|> reserved "iszero" *> (IsZero <$> term)
-    <|> (Var . s2n) <$> identifier
+    <|> (Var . s2n . T.unpack) <$> identifier
     <|> pIf
     <|> pAbs
     <|> pLet
@@ -61,7 +60,7 @@ pLet = do
   val <- term
   reserved "in"
   body <- term
-  return $ Let tp val (bind (s2n name) body)
+  return $ Let tp val (bind (s2n (T.unpack name)) body)
 
 pAbs :: Parser Tree
 pAbs = do
@@ -70,7 +69,7 @@ pAbs = do
   tp <- optional (colon *> pType)
   dot
   body <- term
-  return $ Abs tp (bind (s2n name) body)
+  return $ Abs tp (bind (s2n (T.unpack name)) body)
 
 pNat :: Parser Tree
 pNat = do
@@ -81,15 +80,15 @@ selfIter :: (Eq n, Num n) => n -> (a -> a) -> a -> a
 selfIter 0 _ !x = x
 selfIter !n f !x = selfIter (n - 1) f (f x)
 
-pType :: Parser Type
+pType :: Parser Ty
 pType = do
-  a <- pType
+  a <- pBaseType
   b <- optional (arrow *> pType)
   return $ case b of
     Nothing -> a
     Just b' -> TyFun a b'
 
-pBaseType :: Parser Type
+pBaseType :: Parser Ty
 pBaseType =  reserved "Nat"  *> pure TyNat
          <|> reserved "Bool" *> pure TyBool
          <|> parens pType

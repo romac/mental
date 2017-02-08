@@ -9,6 +9,9 @@ github: romac/row-poly
 extra-source-files:
   - README.md
 
+ghc-options: -Wall -Werror
+default-extensions: NoImplicitPrelude
+
 executables:
   row-poly:
     main: Main.hs
@@ -19,6 +22,7 @@ executables:
       - -with-rtsopts=-N
     dependencies:
       - base
+      - protolude
       - row-poly
 
 library:
@@ -28,6 +32,7 @@ library:
     - containers
     - freer
     - megaparsec
+    - protolude
     - readline
     - text
     - unbound-generics

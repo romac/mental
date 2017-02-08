@@ -1,7 +1,10 @@
 
 module Main where
 
-import RowPoly.REPL
+import Protolude
+
+import RowPoly.REPL (runREPL)
 
 main :: IO ()
-main = repl
+main = runREPL
+

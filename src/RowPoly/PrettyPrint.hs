@@ -1,35 +1,41 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module RowPoly.PrettyPrint where
+module RowPoly.PrettyPrint
+  ( prettyPrint
+  ) where
+
+import           Protolude hiding (empty, (<>))
 
 import qualified Data.Text.Lazy as T
 import           Text.PrettyPrint.Leijen.Text.Monadic
 import           Unbound.Generics.LocallyNameless (Name, name2String, unbind)
 import           Unbound.Generics.LocallyNameless.Fresh (FreshM, runFreshM)
 
-import RowPoly.Tree
-import RowPoly.Type
+import           RowPoly.Tree
+import           RowPoly.Type
 
-natToInt :: Tree -> Int
-natToInt Zero     = 0
-natToInt (Succ n) = natToInt n + 1
-natToInt (Pred n) = natToInt n - 1
+-- ppNat :: Applicative m => Tree -> m Doc
+-- ppNat = text . T.pack . show . natToInt
+--   where
+--     natToInt Zero     = 0
+--     natToInt (Succ n) = natToInt n + 1
+--     natToInt (Pred n) = natToInt n - 1
+--
+-- ppMaybe :: Applicative m => Maybe a -> (a -> m Doc) -> m Doc
+-- ppMaybe Nothing _   = empty
+-- ppMaybe (Just x) pp = pp x
 
-ppNat :: Applicative m => Tree -> m Doc
-ppNat = text . T.pack . show . natToInt
+prettyPrint :: Tree -> Doc
+prettyPrint = runFreshM . pprint
 
 ppName :: Applicative m => Name a -> m Doc
 ppName = text . T.pack . name2String
 
-ppMaybe :: Applicative m => Maybe a -> (a -> m Doc) -> m Doc
-ppMaybe Nothing _   = empty
-ppMaybe (Just x) pp = pp x
-
-ppBind :: Applicative m => Maybe Type -> m Doc
+ppBind :: Applicative m => Maybe Ty -> m Doc
 ppBind Nothing   = empty
 ppBind (Just tp) = text ":" <+> ppType tp
 
-ppType :: Applicative m => Type -> m Doc
+ppType :: Applicative m => Ty -> m Doc
 ppType TyNat       = text "Nat"
 ppType TyBool      = text "Bool"
 ppType (TyVar n)   = ppName n
@@ -73,7 +79,4 @@ pprint (App f x@(App _ _)) =
 
 pprint (App f x) =
   pprint f <+> pprint x
-
-prettyPrint :: Tree -> Doc
-prettyPrint = runFreshM . pprint
 

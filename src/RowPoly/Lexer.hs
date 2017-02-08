@@ -2,24 +2,20 @@
 
 module RowPoly.Lexer where
 
-import           Control.Applicative (empty)
-import           Control.Monad (void)
-import           Data.Monoid ((<>))
+import           Protolude hiding (try, check)
+
+import           Control.Monad (fail)
 
 import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Text.Megaparsec
-import           Text.Megaparsec.Char
 import           Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
 
-import RowPoly.Tree
-import RowPoly.Type
-
 scn, sc :: Parser ()
 scn       = L.space (void spaceChar) (L.skipLineComment "--") empty
-sc        = L.space (void (oneOf ("\t " :: String))) (L.skipLineComment "--") empty
+sc        = L.space (void (oneOf ("\t " :: [Char]))) (L.skipLineComment "--") empty
 
 lexeme :: Parser a -> Parser a
 lexeme    = L.lexeme sc
@@ -27,10 +23,10 @@ lexeme    = L.lexeme sc
 integer :: Parser Integer
 integer   = lexeme L.integer
 
-symbol :: String -> Parser Text
-symbol s = T.pack <$> L.symbol sc s
+symbol :: Text -> Parser Text
+symbol s = T.pack <$> L.symbol sc (T.unpack s)
 
-lambda, equal :: Parser ()
+lambda, equal, arrow :: Parser ()
 lambda = void $ symbol "\\"
 equal  = void $ symbol "="
 arrow  = void $ symbol "->"
@@ -46,7 +42,7 @@ comma     = void $ symbol ","
 colon     = void $ symbol ":"
 dot       = void $ symbol "."
 
-reservedWords :: [String]
+reservedWords :: [Text]
 reservedWords =
   [ "if", "then", "else", "let", "in"
   , "True", "False"
@@ -54,13 +50,13 @@ reservedWords =
   , "Nat", "Bool"
   ]
 
-reserved :: String -> Parser ()
-reserved w = string w *> notFollowedBy alphaNumChar *> sc
+reserved :: Text -> Parser ()
+reserved w = string (T.unpack w) *> notFollowedBy alphaNumChar *> sc
 
-identifier :: Parser String
+identifier :: Parser Text
 identifier = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> letterChar <*> many alphaNumChar
+    p       = T.pack <$> ((:) <$> letterChar <*> many alphaNumChar)
     check x = if x `elem` reservedWords
                  then fail $ "keyword " <> show x <> " cannot be an identifier"
                  else return x

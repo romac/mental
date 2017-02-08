@@ -25,16 +25,20 @@ source-repository head
 library
   hs-source-dirs:
       src
+  default-extensions: NoImplicitPrelude
+  ghc-options: -Wall -Werror
   build-depends:
       base >=4.7 && <5
     , containers
     , freer
     , megaparsec
+    , protolude
     , readline
     , text
     , unbound-generics
     , wl-pprint-text
   exposed-modules:
+      RowPoly.Infer
       RowPoly.Lexer
       RowPoly.Parser
       RowPoly.PrettyPrint
@@ -47,9 +51,11 @@ executable row-poly
   main-is: Main.hs
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  default-extensions: NoImplicitPrelude
+  ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
+    , protolude
     , row-poly
   default-language: Haskell2010
 
@@ -58,7 +64,8 @@ test-suite row-poly-test
   main-is: Spec.hs
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  default-extensions: NoImplicitPrelude
+  ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
     , row-poly
