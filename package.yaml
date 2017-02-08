@@ -1,0 +1,45 @@
+name: row-poly
+version: '0.1.0.0'
+category: Development
+author: Romain Ruetschi
+maintainer: romain.ruetschi@gmail.com
+copyright: 2016 Romain Ruetschi
+license: BSD3
+github: romac/row-poly
+extra-source-files:
+  - README.md
+
+executables:
+  row-poly:
+    main: Main.hs
+    source-dirs: app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - base
+      - row-poly
+
+library:
+  source-dirs: src
+  dependencies:
+    - base >=4.7 && <5
+    - containers
+    - freer
+    - megaparsec
+    - readline
+    - text
+    - unbound-generics
+
+tests:
+  row-poly-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - base
+      - row-poly
