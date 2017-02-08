@@ -76,8 +76,7 @@ envTypeVars env = Set.fromList $ mapMaybe tyVar env
         tyVar _                          = Nothing
 
 substEnv :: Subst -> Env -> Env
-substEnv ss env = map f env
-  where f (n, ts) = (n, substScheme ss ts)
+substEnv ss env = second (substScheme ss) <$> env
 
 generalize :: Ty -> Env -> Scheme
 generalize ty env =
@@ -92,38 +91,38 @@ a <-> b = (a, b)
 (+:) :: Ord a => a -> Set a -> Set a
 (+:) = Set.insert
 
-collect :: Env -> Tree -> InferM (Ty, [Constraint])
+collect :: Env -> Tree -> InferM (Ty, Set Constraint)
 collect env term =
   case term of
-    Tru  -> pure (TyBool, [])
-    Fals -> pure (TyBool, [])
-    Zero -> pure (TyNat, [])
+    Tru  -> pure (TyBool, Set.empty)
+    Fals -> pure (TyBool, Set.empty)
+    Zero -> pure (TyNat,  Set.empty)
 
     Pred t -> do
       (tp, c) <- collect env t
-      pure (TyNat, (tp <-> TyNat) : c)
+      pure (TyNat, (tp <-> TyNat) +: c)
 
     Succ t -> do
       (tp, c) <- collect env t
-      pure (TyNat, (tp <-> TyNat : c))
+      pure (TyNat, (tp <-> TyNat +: c))
 
     IsZero t -> do
       (tp, c) <- collect env t
-      pure (TyBool, (tp <-> TyNat : c))
+      pure (TyBool, (tp <-> TyNat +: c))
 
     If t1 t2 t3 -> do
       (tp1, c1) <- collect env t1
       (tp2, c2) <- collect env t2
       (tp3, c3) <- collect env t3
 
-      let c = [tp1 <-> TyBool, tp2 <-> tp3]
+      let c = Set.fromList [tp1 <-> TyBool, tp2 <-> tp3]
 
-      pure (tp2, c ++ c3 ++ c2 ++ c1)
+      pure (tp2, c <> c3 <> c2 <> c1)
 
     Var name -> do
       case lookup name env of
         Nothing     -> throwError (ValueNotFound name)
-        Just scheme -> (, []) <$> instantiate scheme
+        Just scheme -> (, Set.empty) <$> instantiate scheme
 
     Abs Nothing bnd -> do
       (x, body) <- unbind bnd
@@ -148,13 +147,13 @@ collect env term =
       freshTp <- freshTyVar
 
       let funTp = TyFun (Subst.apply s1 tp2) freshTp
-      let c3 = [(Subst.apply s2 tp1 <-> funTp)]
+      let c3 = Set.singleton (Subst.apply s2 tp1 <-> funTp)
 
-      pure (freshTp, c3 ++ c2 ++ c1)
+      pure (freshTp, c3 <> c2 <> c1)
 
     Let Nothing v bnd -> do
       (tpS, c) <- collect env v
-      s       <- unify c
+      s        <- unify c
 
       let tpT    = Subst.apply s tpS
       let env'   = substEnv s env
@@ -164,20 +163,21 @@ collect env term =
       let env''  = (x, scheme) : env'
 
       (tp, c') <- collect env'' body
-      pure (tp, c' ++ c')
+
+      pure (tp, c <> c')
 
     Let (Just tpX) v bnd -> do
       (x, body) <- unbind bnd
-      (tpV, c) <- collect env v
+      (tpV, c)  <- collect env v
 
       let env' = (x, Scheme [] tpX) : env
-      (tp, c')  <- collect env' body
+      (tp, c') <- collect env' body
 
-      let c'' = [tpX <-> tpV]
-      pure (tp, c'' ++ c' ++ c)
+      let c'' = Set.singleton (tpX <-> tpV)
+      pure (tp, c'' <> c' <> c)
 
-unify :: [Constraint] -> InferM Subst
-unify = go mempty
+unify :: Set Constraint -> InferM Subst
+unify = go mempty . Set.toList
   where
     go :: Subst -> [Constraint] -> InferM Subst
     go acc [] =
@@ -203,8 +203,8 @@ unify = go mempty
            in go (sub <> acc) (Subst.onPairs sub cs)
 
         (TyFun a b, TyFun a' b') -> do
-          s1 <- unify ((a, a') : cs)
-          s2 <- unify (Subst.onPair s1 (b, b') : cs)
+          s1 <- unify ((a, a') +: Set.fromList cs)
+          s2 <- unify (Subst.onPair s1 (b, b') +: Set.fromList cs)
 
           go (s1 <> s2 <> acc) cs
 
