@@ -2,10 +2,12 @@
 
 module RowPoly.PrettyPrint
   ( prettyTree
+  , prettyType
   , prettyEvalError
+  , prettyTypeError
   ) where
 
-import           Protolude hiding (empty, (<>), (<$>))
+import           Protolude hiding (empty, (<>), (<$>), TypeError)
 
 import qualified Data.Text.Lazy as T
 import           Text.PrettyPrint.Leijen.Text.Monadic
@@ -15,6 +17,7 @@ import           Unbound.Generics.LocallyNameless.Fresh (FreshM, runFreshM)
 import           RowPoly.Tree
 import           RowPoly.Type
 import           RowPoly.Eval (EvalError(..))
+import           RowPoly.Infer (TypeError(..))
 
 -- ppNat :: Applicative m => Tree -> m Doc
 -- ppNat = text . T.pack . show . natToInt
@@ -33,6 +36,13 @@ prettyEvalError err = runFreshM (nest 4 ("[ERROR]" <$> pp err))
     pp (NoRuleApplies t) = "•" <+> "Cannot further reduce term:" <+> pprint t
     pp (VarNotInScope n) = "•" <+> "Variable not in scope:" <+> ppName n
 
+prettyTypeError :: TypeError -> Doc
+prettyTypeError err = runFreshM (nest 4 ("[ERROR]" <$> pp err))
+  where
+    pp (InfiniteTypeError s t) = "•" <+> "Cannot unify the infinite type:" <+> ppType s <+> "=" <+> ppType t
+    pp (UnificationError s t) = "•" <+> "Cannot unify:" <+> ppType s <+> "with" <+> ppType t
+    pp (ValueNotFound n) = "•" <+> "Value not found:" <+> ppName n
+
 prettyTree :: Tree -> Doc
 prettyTree = runFreshM . pprint
 
@@ -43,10 +53,14 @@ ppBind :: Applicative m => Maybe Ty -> m Doc
 ppBind Nothing   = empty
 ppBind (Just tp) = text ":" <+> ppType tp
 
+prettyType :: Ty -> Doc
+prettyType = runFreshM . ppType
+
 ppType :: Applicative m => Ty -> m Doc
 ppType TyNat       = text "Nat"
 ppType TyBool      = text "Bool"
 ppType (TyVar n)   = ppName n
+ppType (TyFun a@(TyFun _ _) b) = parens (ppType a) <+> text "->" <+> ppType b
 ppType (TyFun a b) = ppType a <+> text "->" <+> ppType b
 
 pprint :: Tree -> FreshM Doc

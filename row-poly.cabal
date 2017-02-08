@@ -44,6 +44,7 @@ library
       RowPoly.Eval
       RowPoly.Infer
       RowPoly.Lexer
+      RowPoly.NameSupply
       RowPoly.Parser
       RowPoly.PrettyPrint
       RowPoly.REPL

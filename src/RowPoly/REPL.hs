@@ -11,8 +11,9 @@ import           System.Console.Readline (readline, addHistory)
 import           Text.PrettyPrint.Leijen.Text (putDoc)
 
 import           RowPoly.Parser      (parser)
-import           RowPoly.PrettyPrint (prettyTree, prettyEvalError)
+import           RowPoly.PrettyPrint (prettyTree, prettyType, prettyEvalError, prettyTypeError)
 import           RowPoly.Eval        (traceEval)
+import           RowPoly.Infer       (infer)
 
 newline :: IO ()
 newline = T.putStrLn ""
@@ -42,6 +43,12 @@ parsePrintEval code =
       case traceEval tree of
         Left err    -> outputPretty (prettyEvalError err)
         Right steps -> forM_ steps (outputPretty . prettyTree)
+
+      header "Type"
+      case infer tree of
+        Left err -> outputPretty (prettyTypeError err)
+        Right ty -> outputPretty (prettyType ty)
+
   where
     outputPretty d = putDoc d >> newline
 
