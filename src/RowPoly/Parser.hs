@@ -17,9 +17,9 @@ import           Text.Megaparsec.Text
 
 import           Unbound.Generics.LocallyNameless
 
-import RowPoly.Tree
-import RowPoly.Type
-import RowPoly.Lexer
+import           RowPoly.Tree
+import           RowPoly.Type
+import           RowPoly.Lexer
 
 parser :: Parser Tree
 parser = between sc eof term

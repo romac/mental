@@ -33,9 +33,11 @@ library
     , readline
     , text
     , unbound-generics
+    , wl-pprint-text
   exposed-modules:
       RowPoly.Lexer
       RowPoly.Parser
+      RowPoly.PrettyPrint
       RowPoly.REPL
       RowPoly.Tree
       RowPoly.Type
