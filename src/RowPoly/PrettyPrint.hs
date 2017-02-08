@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module RowPoly.PrettyPrint
-  ( prettyPrint
+  ( prettyTree
+  , prettyEvalError
   ) where
 
-import           Protolude hiding (empty, (<>))
+import           Protolude hiding (empty, (<>), (<$>))
 
 import qualified Data.Text.Lazy as T
 import           Text.PrettyPrint.Leijen.Text.Monadic
@@ -13,6 +14,7 @@ import           Unbound.Generics.LocallyNameless.Fresh (FreshM, runFreshM)
 
 import           RowPoly.Tree
 import           RowPoly.Type
+import           RowPoly.Eval (EvalError(..))
 
 -- ppNat :: Applicative m => Tree -> m Doc
 -- ppNat = text . T.pack . show . natToInt
@@ -25,8 +27,14 @@ import           RowPoly.Type
 -- ppMaybe Nothing _   = empty
 -- ppMaybe (Just x) pp = pp x
 
-prettyPrint :: Tree -> Doc
-prettyPrint = runFreshM . pprint
+prettyEvalError :: EvalError -> Doc
+prettyEvalError err = runFreshM (nest 4 ("[ERROR]" <$> pp err))
+  where
+    pp (NoRuleApplies t) = "•" <+> "Cannot further reduce term:" <+> pprint t
+    pp (VarNotInScope n) = "•" <+> "Variable not in scope:" <+> ppName n
+
+prettyTree :: Tree -> Doc
+prettyTree = runFreshM . pprint
 
 ppName :: Applicative m => Name a -> m Doc
 ppName = text . T.pack . name2String
