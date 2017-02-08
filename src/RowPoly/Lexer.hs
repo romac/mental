@@ -13,6 +13,8 @@ import           Text.Megaparsec
 import           Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
 
+import           Unbound.Generics.LocallyNameless (s2n, Name)
+
 scn, sc :: Parser ()
 scn       = L.space (void spaceChar) (L.skipLineComment "--") empty
 sc        = L.space (void (oneOf ("\t " :: [Char]))) (L.skipLineComment "--") empty
@@ -26,35 +28,39 @@ integer   = lexeme L.integer
 symbol :: Text -> Parser Text
 symbol s = T.pack <$> L.symbol sc (T.unpack s)
 
-lambda, equal, arrow :: Parser ()
-lambda = void $ symbol "\\"
-equal  = void $ symbol "="
-arrow  = void $ symbol "->"
+lambda, equal, arrow, fatArrow :: Parser ()
+lambda   = void $ symbol "\\"
+equal    = void $ symbol "= "
+arrow    = void $ symbol "->"
+fatArrow = void $ symbol "=>"
 
 parens, braces, brackets :: Parser a -> Parser a
 parens    = between (symbol "(") (symbol ")")
 braces    = between (symbol "{") (symbol "}")
 brackets  = between (symbol "[") (symbol "]")
 
-semicolon, comma, colon, dot :: Parser ()
+semicolon, comma, colon, dot, plus :: Parser ()
 semicolon = void $ symbol ";"
 comma     = void $ symbol ","
 colon     = void $ symbol ":"
 dot       = void $ symbol "."
+plus      = void $ symbol "+"
 
 reservedWords :: [Text]
 reservedWords =
-  [ "if", "then", "else", "let", "in"
-  , "True", "False"
-  , "succ", "pred"
+  [ "if", "then", "else", "let", "in", "case", "of", "inl", "inr", "as"
+  , "True", "False", "succ", "pred", "iszero" , "fst", "snd"
   , "Nat", "Bool"
   ]
 
 reserved :: Text -> Parser ()
 reserved w = string (T.unpack w) *> notFollowedBy alphaNumChar *> sc
 
-identifier :: Parser Text
-identifier = (lexeme . try) (p >>= check)
+identifier :: Parser (Name a)
+identifier = (s2n . T.unpack) <$> identifier'
+
+identifier' :: Parser Text
+identifier' = (lexeme . try) (p >>= check)
   where
     p       = T.pack <$> ((:) <$> letterChar <*> many alphaNumChar)
     check x = if x `elem` reservedWords

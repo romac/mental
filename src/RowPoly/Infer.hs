@@ -9,7 +9,7 @@ module RowPoly.Infer
   , TypeError(..)
   ) where
 
-import           Protolude hiding (Constraint, TypeError)
+import           Protolude hiding (Constraint, TypeError, First)
 
 import qualified Data.Set as Set
 import           Data.Set ((\\))
@@ -110,6 +110,39 @@ collect env term =
       (tp, c) <- collect env t
       pure (TyBool, (tp <-> TyNat +: c))
 
+    Tuple a b -> do
+      (ta, ca) <- collect env a
+      (tb, cb) <- collect env b
+      pure (TyTuple ta tb, ca <> cb)
+
+    First t -> do
+      (ta, tb) <- (,) <$> freshTyVar <*> freshTyVar
+      (tp, c) <- collect env t
+      pure (ta, tp <-> TyTuple ta tb +: c)
+
+    Second t -> do
+      (ta, tb) <- (,) <$> freshTyVar <*> freshTyVar
+      (tp, c) <- collect env t
+      pure (tb, tp <-> TyTuple ta tb +: c)
+
+    Inl t ty -> do
+      tr <- freshTyVar
+      (tl, c) <- collect env t
+      pure (ty, ty <-> TySum tl tr +: c)
+
+    Inr t ty -> do
+      tl <- freshTyVar
+      (tr, c) <- collect env t
+      pure (ty, ty <-> TySum tl tr +: c)
+
+    Case t inl inr -> do
+      (ty, c)  <- collect env t
+      (tl, cl) <- collect env (Let Nothing t inl)
+      (tr, cr) <- collect env (Let Nothing t inr)
+
+      let c' = Set.fromList [tl <-> tr, ty <-> TySum tl tr]
+      pure (tl, c <> c' <> cl <> cr)
+
     If t1 t2 t3 -> do
       (tp1, c1) <- collect env t1
       (tp2, c2) <- collect env t2
@@ -202,12 +235,21 @@ unify = go mempty . Set.toList
           let sub = Subst.singleton n t
            in go (sub <> acc) (Subst.onPairs sub cs)
 
-        (TyFun a b, TyFun a' b') -> do
-          s1 <- unify ((a, a') +: Set.fromList cs)
-          s2 <- unify (Subst.onPair s1 (b, b') +: Set.fromList cs)
+        (TyFun a b, TyFun a' b') ->
+          unifyPair (a, b) (a', b')
 
-          go (s1 <> s2 <> acc) cs
+        (TyTuple a b, TyTuple a' b') ->
+          unifyPair (a, b) (a', b')
+
+        (TySum a b, TySum a' b') ->
+          unifyPair (a, b) (a', b')
 
         (s, t) ->
           throwError (UnificationError s t)
+
+        where
+          unifyPair (a, b) (a', b') = do
+            s1 <- unify ((a, a') +: Set.fromList cs)
+            s2 <- unify (Subst.onPair s1 (b, b') +: Set.fromList cs)
+            go (s1 <> s2 <> acc) cs
 

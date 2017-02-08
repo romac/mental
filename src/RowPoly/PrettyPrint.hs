@@ -7,7 +7,7 @@ module RowPoly.PrettyPrint
   , prettyTypeError
   ) where
 
-import           Protolude hiding (empty, (<>), (<$>), TypeError)
+import           Protolude hiding (empty, (<>), (<$>), TypeError, First)
 
 import qualified Data.Text.Lazy as T
 import           Text.PrettyPrint.Leijen.Text.Monadic
@@ -32,7 +32,7 @@ bullet :: Applicative m => m Doc -> m Doc
 bullet = (text "-" <+>)
 
 errorDoc :: Applicative m => m Doc -> m Doc
-errorDoc err = nest 4 (text "[ERROR]" <$> bullet err)
+errorDoc err = nest 4 (text "Error:" <$> bullet err)
 
 prettyEvalError :: EvalError -> Doc
 prettyEvalError err = runFreshM (nest 4 (errorDoc (pp err)))
@@ -41,7 +41,7 @@ prettyEvalError err = runFreshM (nest 4 (errorDoc (pp err)))
     pp (VarNotInScope n) = "Variable not in scope:" <+> ppName n
 
 prettyTypeError :: TypeError -> Doc
-prettyTypeError err = runFreshM (errorDoc (bullet (pp err)))
+prettyTypeError err = runFreshM (errorDoc (pp err))
   where
     pp (InfiniteTypeError s t) = "Cannot unify the infinite type:" <+> ppType s <+> " = " <+> ppType t
     pp (UnificationError s t)  = "Cannot unify:" <+> ppType s <+> "with" <+> ppType t
@@ -50,32 +50,45 @@ prettyTypeError err = runFreshM (errorDoc (bullet (pp err)))
 prettyTree :: Tree -> Doc
 prettyTree = runFreshM . pprint
 
-ppName :: Applicative m => Name a -> m Doc
+ppName :: Name a -> FreshM Doc
 ppName = text . T.pack . name2String
 
-ppBind :: Applicative m => Maybe Ty -> m Doc
+ppBind :: Maybe Ty -> FreshM Doc
 ppBind Nothing   = empty
-ppBind (Just tp) = text ":" <+> ppType tp
+ppBind (Just tp) = ":" <+> ppType tp
 
 prettyType :: Ty -> Doc
 prettyType = runFreshM . ppType
 
-ppType :: Applicative m => Ty -> m Doc
-ppType TyNat       = text "Nat"
-ppType TyBool      = text "Bool"
-ppType (TyVar n)   = ppName n
-ppType (TyFun a@(TyFun _ _) b) = parens (ppType a) <+> text "->" <+> ppType b
-ppType (TyFun a b) = ppType a <+> text "->" <+> ppType b
+ppType :: Ty -> FreshM Doc
+ppType TyNat                   = "Nat"
+ppType TyBool                  = "Bool"
+ppType (TyVar n)               = ppName n
+ppType (TyFun a@(TyFun _ _) b) = parens (ppType a) <+> "->" <+> ppType b
+ppType (TyFun a b)             = ppType a <+> "->" <+> ppType b
+ppType (TyTuple a b)           = parens (ppType a <> "," <+> ppType b)
+ppType (TySum a b)             = parens (ppType a <+> "+" <+> ppType b)
 
 pprint :: Tree -> FreshM Doc
 pprint Tru              = "True"
 pprint Fals             = "False"
-pprint n@IsNumericValue = ppNat n
 pprint Zero             = "0"
+pprint n@IsNumericValue = ppNat n
 pprint (Succ t)         = "succ" <+> pprint t
 pprint (Pred t)         = "pred" <+> pprint t
 pprint (IsZero t)       = "iszero" <+> pprint t
 pprint (Var n)          = ppName n
+pprint (Tuple a b)      = parens (pprint a <> comma <+> pprint b)
+pprint (First t)        = "fst" <+> pprint t
+pprint (Second t)       = "second" <+> pprint t
+pprint (Inl t as)       = "inl" <+> pprint t <+> "as" <+> ppType as
+pprint (Inr t as)       = "inr" <+> pprint t <+> "as" <+> ppType as
+pprint (Case t inl inr) = do
+  (l, l') <- unbind inl
+  (r, r') <- unbind inr
+  let lDoc = "inl" <+> ppName l <+> "=>" <+> pprint l'
+  let rDoc = "inr" <+> ppName r <+> "=>" <+> pprint r'
+  "case" <+> pprint t <+> "of" <$$> nest 2 (lDoc <$$> rDoc)
 
 pprint (If cnd thn els) =
   "if" <+> pprint cnd

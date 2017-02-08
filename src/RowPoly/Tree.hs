@@ -35,6 +35,12 @@ data Tree
   | Abs (Maybe Ty) (Bind VarName Tree)
   | App Tree Tree
   | Let (Maybe Ty) Tree (Bind VarName Tree)
+  | Tuple Tree Tree
+  | First Tree
+  | Second Tree
+  | Inl Tree Ty
+  | Inr Tree Ty
+  | Case Tree (Bind VarName Tree) (Bind VarName Tree)
   deriving (Show, Generic, Typeable)
 
 instance Alpha Tree
@@ -50,10 +56,13 @@ instance Subst Tree Ty where
   isvar _ = Nothing
 
 isValue :: Tree -> Bool
-isValue Tru            = True
-isValue Fals           = True
-isValue (Abs _ _)      = True
-isValue v              = isNumericValue v
+isValue Tru         = True
+isValue Fals        = True
+isValue (Tuple a b) = isValue a && isValue b
+isValue (Inl t _)   = isValue t
+isValue (Inr t _)   = isValue t
+isValue (Abs _ _)   = True
+isValue v           = isNumericValue v
 
 isNumericValue :: Tree -> Bool
 isNumericValue Zero     = True

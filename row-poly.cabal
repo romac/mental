@@ -48,6 +48,7 @@ library
       RowPoly.Parser
       RowPoly.PrettyPrint
       RowPoly.REPL
+      RowPoly.REPL.Cmd
       RowPoly.Subst
       RowPoly.Tree
       RowPoly.Type
