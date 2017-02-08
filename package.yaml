@@ -32,9 +32,12 @@ library:
     - containers
     - freer
     - megaparsec
+    - mtl
     - protolude
     - readline
+    - semigroups
     - text
+    - transformers
     - unbound-generics
     - wl-pprint-text
 
