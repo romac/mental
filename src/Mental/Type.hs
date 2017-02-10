@@ -18,12 +18,12 @@ import           Mental.Primitive
 type TyName = Name Ty
 
 data Ty
-  = TyVar TyName
-  | TyFun Ty Ty
+  = TyVar !TyName
+  | TyFun !Ty !Ty
   | TyNat
   | TyBool
-  | TyPair Ty Ty
-  | TySum Ty Ty
+  | TyPair !Ty !Ty
+  | TySum !Ty !Ty
   deriving (Eq, Ord, Show, Generic, Typeable)
 
 instance Alpha Ty
@@ -34,3 +34,4 @@ instance Subst Ty Ty where
 
 instance Subst Ty Primitive where
   isvar _ = Nothing
+

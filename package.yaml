@@ -9,14 +9,17 @@ github: romac/mental
 extra-source-files:
   - README.md
 
-ghc-options: -Wall -Werror
-default-extensions: NoImplicitPrelude
+ghc-options: -Wall
+default-extensions:
+  - NoImplicitPrelude
+  - OverloadedStrings
 
 executables:
   mentalist:
     main: Main.hs
     source-dirs: mentalist
     ghc-options:
+      - -O2
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N

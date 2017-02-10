@@ -18,8 +18,7 @@ import           Unbound.Generics.LocallyNameless.Fresh (FreshM, runFreshM)
 import           Mental.Tree
 import           Mental.Type
 import           Mental.Primitive
-import           Mental.Eval (EvalError(..))
-import           Mental.Infer (TypeError(..))
+import           Mental.Error
 
 ppNat :: Applicative m => Tree -> m Doc
 ppNat = text . T.pack . show . natToInt

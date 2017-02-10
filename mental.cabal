@@ -25,8 +25,8 @@ source-repository head
 library
   hs-source-dirs:
       src
-  default-extensions: NoImplicitPrelude
-  ghc-options: -Wall -Werror
+  default-extensions: NoImplicitPrelude OverloadedStrings
+  ghc-options: -Wall
   build-depends:
       base >=4.7 && <5
     , containers
@@ -41,6 +41,7 @@ library
     , unbound-generics
     , wl-pprint-text
   exposed-modules:
+      Mental.Error
       Mental.Eval
       Mental.Infer
       Mental.Lexer
@@ -57,8 +58,8 @@ executable mentalist
   main-is: Main.hs
   hs-source-dirs:
       mentalist
-  default-extensions: NoImplicitPrelude
-  ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
+  default-extensions: NoImplicitPrelude OverloadedStrings
+  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
     , mental
@@ -78,8 +79,8 @@ test-suite mental-test
   main-is: Spec.hs
   hs-source-dirs:
       test
-  default-extensions: NoImplicitPrelude
-  ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
+  default-extensions: NoImplicitPrelude OverloadedStrings
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
     , protolude

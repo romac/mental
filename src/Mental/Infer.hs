@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -8,6 +9,8 @@ module Mental.Infer
   , infer
   , TypeError(..)
   ) where
+
+#define DEBUG_CONSTRAINTS 1
 
 import           Protolude hiding (Constraint, TypeError, First)
 
@@ -22,27 +25,53 @@ import           Mental.Subst (Subst)
 import qualified Mental.Subst as Subst
 import           Mental.Tree
 import           Mental.Type
+import           Mental.Error
 import           Mental.Primitive
 import           Mental.NameSupply
 
-data TypeError
-  = ValueNotFound VarName
-  | UnificationError Ty Ty
-  | InfiniteTypeError Ty Ty
+#if DEBUG_CONSTRAINTS
+import           Mental.PrettyPrint (prettyType)
+#endif
 
 newtype Infer a = Infer (ExceptT TypeError (NameSupplyT FreshM) a)
   deriving (Functor, Applicative, Monad, Fresh, MonadNameSupply, MonadError TypeError)
 
 type InferResult = Either TypeError
 
+type Env = [(VarName, Scheme)]
+
+type Constraint = (Ty, Ty)
+
 data Scheme = Scheme [TyName] Ty
+
+(<->) :: a -> b -> (a, b)
+a <-> b = (a, b)
+
+(+:) :: Ord a => a -> Set a -> Set a
+(+:) = Set.insert
 
 runInfer :: Infer a -> InferResult a
 runInfer (Infer x) = runFreshM (runNameSupplyT (runExceptT x))
 
+#if DEBUG_CONSTRAINTS
+debugConstraints :: Set Constraint -> Infer ()
+debugConstraints cs = do
+  traceM "\n# Constraints:"
+  forM_ (Set.toList cs) pp
+  traceM ""
+    where
+      pp (a, b) = do
+        let l = show (prettyType a)
+        let r = show (prettyType b)
+        traceM ("# " <> l <> " <-> " <> r)
+#endif
+
 infer :: Tree -> InferResult Ty
 infer tree = runInfer $ do
   (ty, cs) <- collect [] tree
+#if DEBUG_CONSTRAINTS
+  debugConstraints cs
+#endif
   sub <- unify cs
   pure $ Subst.apply sub ty
 
@@ -69,8 +98,6 @@ freeTyVars ty = Set.fromList (toListOf fv ty)
 tyContains :: Ty -> TyName -> Bool
 tyContains ty n = Set.member n (freeTyVars ty)
 
-type Env = [(VarName, Scheme)]
-
 envTypeVars :: Env -> Set TyName
 envTypeVars env = Set.fromList $ mapMaybe tyVar env
   where tyVar (_, Scheme _ (TyVar name)) = Just name
@@ -83,14 +110,6 @@ generalize :: Ty -> Env -> Scheme
 generalize ty env =
   let vars = Set.toList (freeTyVars ty \\ envTypeVars env)
    in Scheme vars ty
-
-type Constraint = (Ty, Ty)
-
-(<->) :: a -> b -> (a, b)
-a <-> b = (a, b)
-
-(+:) :: Ord a => a -> Set a -> Set a
-(+:) = Set.insert
 
 pure' :: Ty -> Infer (Ty, Set Constraint)
 pure' ty = pure (ty, Set.empty)

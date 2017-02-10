@@ -7,6 +7,7 @@
 module Mental.Tree
   ( VarName
   , Tree(..)
+  , Name
   , isValue
   , isNumericValue
   , pattern IsValue
@@ -29,16 +30,16 @@ data Tree
   = Tru
   | Fals
   | Zero
-  | If Tree Tree Tree
-  | Var VarName
-  | Abs (Maybe Ty) (Bind VarName Tree)
-  | App Tree Tree
-  | Let (Maybe Ty) Tree (Bind VarName Tree)
-  | Pair Tree Tree
-  | Inl Tree Ty
-  | Inr Tree Ty
-  | Case Tree (Bind VarName Tree) (Bind VarName Tree)
-  | Prim Primitive
+  | If !Tree !Tree !Tree
+  | Var !VarName
+  | Abs !(Maybe Ty) !(Bind VarName Tree)
+  | App !Tree !Tree
+  | Let !(Maybe Ty) !Tree !(Bind VarName Tree)
+  | Pair !Tree !Tree
+  | Inl !Tree !Ty
+  | Inr !Tree !Ty
+  | Case !Tree !(Bind VarName Tree) !(Bind VarName Tree)
+  | Prim !Primitive
   deriving (Show, Generic, Typeable)
 
 instance Alpha Tree

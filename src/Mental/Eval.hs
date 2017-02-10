@@ -1,3 +1,4 @@
+{-# LANGUAGE Strict #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -16,11 +17,8 @@ import           Data.List.NonEmpty
 import           Unbound.Generics.LocallyNameless
 
 import           Mental.Tree
+import           Mental.Error
 import           Mental.Primitive
-
-data EvalError
-  = NoRuleApplies Tree
-  | VarNotInScope (Name Tree)
 
 type EvalResult = Either EvalError
 
@@ -72,12 +70,13 @@ eval' (App (Abs _ bnd) v@IsValue) = do
 eval' (PrimApp prim v@IsValue) =
   evalPrim prim v
 
-eval' (App f@IsValue x)   = App f           <$> eval' x
-eval' (App f x)           = App             <$> eval' f <*> pure x
-eval' (Let tp v bnd)      = Let tp          <$> eval' v <*> pure bnd
-eval' (If cnd thn els)    = If              <$> eval' cnd <*> pure thn <*> pure els
+eval' (App f@IsValue x)   = App f  <$> eval' x
+eval' (App f x)           = App    <$> eval' f <*> pure x
+eval' (Let tp v bnd)      = Let tp <$> eval' v <*> pure bnd
+eval' (If cnd thn els)    = If     <$> eval' cnd <*> pure thn <*> pure els
 
-eval' t = throwError (NoRuleApplies t)
+eval' t =
+  throwError (NoRuleApplies t)
 
 evalPrim :: Primitive -> Tree -> Eval Tree
 evalPrim IsZero Zero                          = pure Tru
@@ -88,5 +87,6 @@ evalPrim Fix t@(Abs _ bnd) = do
   (x, body) <- unbind bnd
   pure $ subst x (PrimApp Fix t) body
 
-evalPrim prim t = throwError (NoRuleApplies (PrimApp prim t))
+evalPrim prim t =
+  throwError (NoRuleApplies (PrimApp prim t))
 
