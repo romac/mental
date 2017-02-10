@@ -29,14 +29,16 @@ pTerm = do
 
 pSimpleTerm :: Parser Tree
 pSimpleTerm =  reserved "True"  *> pure Tru
-    <|> reserved "False" *> pure Fals
     <|> pNat
+    <|> reserved "False" *> pure Fals
     <|> reserved "succ"   *> (Succ   <$> pTerm)
     <|> reserved "pred"   *> (Pred   <$> pTerm)
     <|> reserved "iszero" *> (IsZero <$> pTerm)
     <|> Var <$> identifier
     <|> pIf
     <|> pAbs
+    <|> pFix
+    <|> pLetRec
     <|> pLet
     <|> pPair
     <|> pSum "inl"
@@ -64,6 +66,21 @@ pLet = do
   reserved "in"
   body <- pTerm
   pure $ Let tp val (bind name body)
+
+pLetRec :: Parser Tree
+pLetRec = do
+  reserved "letrec"
+  name <- identifier
+  ty <- optional (colon *> pTy)
+  equal
+  val <- pTerm
+  reserved "in"
+  body <- pTerm
+  let inner = Abs ty (bind name val)
+  pure $ Let ty inner (bind name (Fix body))
+
+pFix :: Parser Tree
+pFix = reserved "fix" >> Fix <$> pTerm
 
 pPair :: Parser Tree
 pPair = parens $ do

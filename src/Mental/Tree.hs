@@ -35,6 +35,7 @@ data Tree
   | Abs (Maybe Ty) (Bind VarName Tree)
   | App Tree Tree
   | Let (Maybe Ty) Tree (Bind VarName Tree)
+  | Fix Tree
   | Pair Tree Tree
   | First Tree
   | Second Tree

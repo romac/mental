@@ -78,6 +78,7 @@ pprint (Succ t)         = "succ" <+> pprint t
 pprint (Pred t)         = "pred" <+> pprint t
 pprint (IsZero t)       = "iszero" <+> pprint t
 pprint (Var n)          = ppName n
+pprint (Fix t)          = "fix" <+> pprint t
 pprint (Pair a b)       = parens (pprint a <> comma <+> pprint b)
 pprint (First t)        = "fst" <+> pprint t
 pprint (Second t)       = "second" <+> pprint t
@@ -105,14 +106,21 @@ pprint (Abs tp bnd) = do
     pprint body)
 
 pprint (Let tp val bnd) = do
-  (x, body) <- unbind bnd
-  text "let" <+>
-    ppName x <+>
-    ppBind tp <+>
-    text "=" <+>
-    pprint val <+>
-    text "in" <+>
-    pprint body
+  (x, bdy) <- unbind bnd
+  case (val, bdy) of
+    (Abs _ val', Fix body) -> do
+      (_, val'') <- unbind val'
+      text "letrec" <+> z x val'' body
+    (_, body) ->
+      text "let" <+> z x val body
+  where
+    z x value body =
+      ppName x <+>
+      ppBind tp <+>
+      text "=" <+>
+      pprint value <+>
+      text "in" <+>
+      pprint body
 
 pprint (App f x@(App _ _)) =
   pprint f <+> parens (pprint x)

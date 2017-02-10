@@ -184,6 +184,12 @@ collect env term =
 
       pure (freshTp, c3 <> c2 <> c1)
 
+    Fix t -> do
+      (ty, c) <- collect env t
+      a <- freshTyVar
+
+      pure (a, ty <-> TyFun a a +: c)
+
     Let Nothing v bnd -> do
       (tpS, c) <- collect env v
       s        <- unify c

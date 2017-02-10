@@ -15,6 +15,13 @@ import qualified Text.Megaparsec.Lexer as L
 
 import           Unbound.Generics.LocallyNameless (s2n, Name)
 
+reservedWords :: [Text]
+reservedWords =
+  [ "if", "then", "else", "let", "letrec", "in", "case", "of", "as", "fix"
+  , "True", "False", "succ", "pred", "iszero" , "fst", "snd", "inl", "inr"
+  , "Nat", "Bool"
+  ]
+
 scn, sc :: Parser ()
 scn       = L.space (void spaceChar) (L.skipLineComment "--") empty
 sc        = L.space (void (oneOf ("\t " :: [Char]))) (L.skipLineComment "--") empty
@@ -45,13 +52,6 @@ comma     = void $ symbol ","
 colon     = void $ symbol ":"
 dot       = void $ symbol "."
 plus      = void $ symbol "+"
-
-reservedWords :: [Text]
-reservedWords =
-  [ "if", "then", "else", "let", "in", "case", "of", "inl", "inr", "as"
-  , "True", "False", "succ", "pred", "iszero" , "fst", "snd"
-  , "Nat", "Bool"
-  ]
 
 reserved :: Text -> Parser ()
 reserved w = string (T.unpack w) *> notFollowedBy alphaNumChar *> sc

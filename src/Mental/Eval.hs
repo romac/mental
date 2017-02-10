@@ -57,6 +57,10 @@ eval' (IsZero (Succ IsNumericValue)) = pure Fals
 eval' (Pred (Succ t@IsNumericValue)) = pure t
 eval' (If Tru thn _)                 = pure thn
 eval' (If Fals _ els)                = pure els
+eval' t@(Fix (Abs _ bnd)) = do
+  (x, body) <- unbind bnd
+  pure $ subst x t body
+
 eval' (Let _ v@IsValue bnd) = do
   (x, body) <- unbind bnd
   pure $ subst x v body
@@ -71,6 +75,7 @@ eval' (Let tp v bnd)    = Let tp <$> eval' v <*> pure bnd
 eval' (IsZero t)        = IsZero <$> eval' t
 eval' (Succ t)          = Succ   <$> eval' t
 eval' (Pred t)          = Pred   <$> eval' t
+eval' (Fix t)           = Fix    <$> eval' t
 eval' (If cnd thn els)  = If     <$> eval' cnd <*> pure thn <*> pure els
 
 eval' t = throwError (NoRuleApplies t)
