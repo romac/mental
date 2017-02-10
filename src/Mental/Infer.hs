@@ -1,27 +1,32 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Mental.Infer
   ( unify
-  , collect
-  , infer
+  , inferType
   , TypeError(..)
   ) where
 
-#define DEBUG_CONSTRAINTS 1
+#define DEBUG_INFER 0
 
 import           Protolude hiding (Constraint, TypeError, First)
 
 import qualified Data.Set as Set
 import           Data.Set ((\\))
-import           Data.List (lookup)
+import qualified Data.Map.Strict as Map
+
+import           Control.Monad.Writer.Strict hiding (First, (<>))
 
 import           Unbound.Generics.LocallyNameless hiding (Subst)
 import           Unbound.Generics.LocallyNameless.Internal.Fold
 
-import           Mental.Subst (Subst)
+import           Mental.Subst (Subst(..))
 import qualified Mental.Subst as Subst
 import           Mental.Tree
 import           Mental.Type
@@ -29,32 +34,65 @@ import           Mental.Error
 import           Mental.Primitive
 import           Mental.NameSupply
 
-#if DEBUG_CONSTRAINTS
+#if DEBUG_INFER
 import           Mental.PrettyPrint (prettyType)
 #endif
 
-newtype Infer a = Infer (ExceptT TypeError (NameSupplyT FreshM) a)
-  deriving (Functor, Applicative, Monad, Fresh, MonadNameSupply, MonadError TypeError)
-
 type InferResult = Either TypeError
+type UnifyResult = Either TypeError
 
-type Env = [(VarName, Scheme)]
+type Env = Map VarName Scheme
 
 type Constraint = (Ty, Ty)
 
-data Scheme = Scheme [TyName] Ty
+newtype Infer a
+  = Infer (ReaderT
+            Env
+            (ExceptT
+              TypeError
+              (WriterT
+                (Set Constraint)
+                (NameSupplyT FreshM))) a)
+  deriving ( Functor
+           , Applicative
+           , Monad
+           , Fresh
+           , MonadNameSupply
+           , MonadReader Env
+           , MonadWriter (Set Constraint)
+           , MonadError TypeError)
 
-(<->) :: a -> b -> (a, b)
-a <-> b = (a, b)
+type UnifyState = (Subst, [Constraint])
 
-(+:) :: Ord a => a -> Set a -> Set a
-(+:) = Set.insert
+newtype Unify a
+  = Unify (StateT
+             UnifyState
+             (Except TypeError)
+             a)
+  deriving (Functor, Applicative, Monad, MonadState UnifyState, MonadError TypeError)
 
-runInfer :: Infer a -> InferResult a
-runInfer (Infer x) = runFreshM (runNameSupplyT (runExceptT x))
+data Scheme = Forall [TyName] Ty
+  deriving (Eq, Show, Generic, Typeable)
 
-#if DEBUG_CONSTRAINTS
-debugConstraints :: Set Constraint -> Infer ()
+instance Alpha Scheme
+
+forAll :: Ty -> Scheme
+forAll = Forall []
+
+runInfer :: Env -> Infer a -> InferResult (a, Set Constraint)
+runInfer env (Infer x) =
+  case runFreshM (runNameSupplyT (runWriterT (runExceptT (runReaderT x env)))) of
+    (Left err, _) -> Left err
+    (Right a, cs) -> Right (a, cs)
+
+runUnify :: UnifyState -> Unify a -> UnifyResult a
+runUnify st (Unify a) = runExcept (evalStateT a st)
+
+solve :: Set Constraint -> UnifyResult Subst
+solve cs = runUnify (Subst.empty, Set.toList cs) unify
+
+#if DEBUG_INFER
+debugConstraints :: Monad m => Set Constraint -> m ()
 debugConstraints cs = do
   traceM "\n# Constraints:"
   forM_ (Set.toList cs) pp
@@ -64,211 +102,225 @@ debugConstraints cs = do
         let l = show (prettyType a)
         let r = show (prettyType b)
         traceM ("# " <> l <> " <-> " <> r)
+
+debugSubst :: Monad m => Subst -> m ()
+debugSubst (Subst sub) = do
+  traceM "\n# Substitutions:"
+  forM_ (Map.toList sub) pp
+  traceM ""
+    where
+      pp (a, b) = do
+        let l = show a
+        let r = show (prettyType b)
+        traceM ("# " <> l <> " / " <> r)
 #endif
 
-infer :: Tree -> InferResult Ty
-infer tree = runInfer $ do
-  (ty, cs) <- collect [] tree
-#if DEBUG_CONSTRAINTS
-  debugConstraints cs
-#endif
-  sub <- unify cs
-  pure $ Subst.apply sub ty
+inferType :: Tree -> InferResult Ty
+inferType tree = do
+  (ty, cs) <- runInfer Map.empty (infer tree)
+  sub      <- solve cs
+  pure (Subst.apply sub ty)
 
 freshTyName :: (Fresh m, MonadNameSupply m) => m TyName
 freshTyName = do
   name <- s2n <$> supplyName
   fresh name
 
-freshTyVar :: (Fresh m, MonadNameSupply m) => m Ty
-freshTyVar = TyVar <$> freshTyName
+freshTy :: (Fresh m, MonadNameSupply m) => m Ty
+freshTy = TyVar <$> freshTyName
 
-substScheme :: Subst -> Scheme -> Scheme
-substScheme ss (Scheme ps tp) = Scheme ps (Subst.apply ss tp)
+ftvTy :: Ty -> Set TyName
+ftvTy ty = Set.fromList (toListOf fv ty)
 
-instantiate :: Scheme -> Infer Ty
-instantiate (Scheme params tp) = do
-  freshVars <- replicateM (length params) freshTyVar
-  let subs = params `zip` freshVars
-  pure $ substs subs tp
-
-freeTyVars :: Ty -> Set TyName
-freeTyVars ty = Set.fromList (toListOf fv ty)
-
-tyContains :: Ty -> TyName -> Bool
-tyContains ty n = Set.member n (freeTyVars ty)
-
-envTypeVars :: Env -> Set TyName
-envTypeVars env = Set.fromList $ mapMaybe tyVar env
-  where tyVar (_, Scheme _ (TyVar name)) = Just name
-        tyVar _                          = Nothing
+ftvEnv :: Env -> Set TyName
+ftvEnv env = Set.fromList (toListOf fv (Map.elems env))
 
 substEnv :: Subst -> Env -> Env
-substEnv ss env = second (substScheme ss) <$> env
+substEnv s env = Map.map (substScheme s) env
+
+substScheme :: Subst -> Scheme -> Scheme
+substScheme (Subst s) (Forall vars ty) = Forall vars (Subst.apply s' ty)
+  where s' = Subst (foldr Map.delete s vars)
+
+tyContains :: Ty -> TyName -> Bool
+tyContains ty n = Set.member n (ftvTy ty)
 
 generalize :: Ty -> Env -> Scheme
-generalize ty env =
-  let vars = Set.toList (freeTyVars ty \\ envTypeVars env)
-   in Scheme vars ty
+generalize ty env = runIdentity $ do
+  let vars = Set.toList (ftvTy ty \\ ftvEnv env)
+  pure $ Forall vars ty
 
-pure' :: Ty -> Infer (Ty, Set Constraint)
-pure' ty = pure (ty, Set.empty)
+instantiate :: Scheme -> Infer Ty
+instantiate (Forall params ty) = do
+  freshTys <- mapM (const freshTy) params
+  let subs = params `zip` freshTys
+  pure $ substs subs ty
 
-collect :: Env -> Tree -> Infer (Ty, Set Constraint)
-collect env term =
-  case term of
-    Tru  -> pure' TyBool
-    Fals -> pure' TyBool
-    Zero -> pure' TyNat
+addConstraint' :: Constraint -> Infer ()
+addConstraint' = tell . Set.singleton
 
-    Prim Succ   -> pure' $ TyFun TyNat TyNat
-    Prim Pred   -> pure' $ TyFun TyNat TyNat
-    Prim IsZero -> pure' $ TyFun TyNat TyBool
+addConstraint :: Ty -> Ty -> Infer ()
+addConstraint a b = addConstraint' (a, b)
+
+(<->) :: Ty -> Ty -> Infer ()
+(<->) = addConstraint
+
+withBinding :: Infer Ty -> (VarName, Scheme) -> Infer Ty
+withBinding a (x, scheme) = do
+  let scope env = Map.insert x scheme env
+  local scope a
+
+infer :: Tree -> Infer Ty
+infer tree = do
+  case tree of
+    Tru  -> pure TyBool
+    Fals -> pure TyBool
+    Zero -> pure TyNat
+
+    Prim Succ   -> pure $ TyFun TyNat TyNat
+    Prim Pred   -> pure $ TyFun TyNat TyNat
+    Prim IsZero -> pure $ TyFun TyNat TyBool
 
     Prim First -> do
-      a <- freshTyVar
-      b <- freshTyVar
-      pure' (TyFun (TyPair a b) a)
+      a <- freshTy
+      b <- freshTy
+      pure (TyFun (TyPair a b) a)
 
     Prim Second -> do
-      a <- freshTyVar
-      b <- freshTyVar
-      pure' (TyFun (TyPair a b) b)
+      a <- freshTy
+      b <- freshTy
+      pure (TyFun (TyPair a b) b)
 
     Prim Fix -> do
-      a <- freshTyVar
-      pure' (TyFun (TyFun a a) a)
+      a <- freshTy
+      pure (TyFun (TyFun a a) a)
 
-    Pair a b -> do
-      (ta, ca) <- collect env a
-      (tb, cb) <- collect env b
-      pure (TyPair ta tb, ca <> cb)
+    Pair a b ->
+      TyPair <$> infer a <*> infer b
 
     Inl t ty -> do
-      tr <- freshTyVar
-      (tl, c) <- collect env t
-      pure (ty, ty <-> TySum tl tr +: c)
+      tr <- freshTy
+      tl <- infer t
+
+      ty <-> TySum tl tr
+      pure ty
 
     Inr t ty -> do
-      tl <- freshTyVar
-      (tr, c) <- collect env t
-      pure (ty, ty <-> TySum tl tr +: c)
+      tl <- freshTy
+      tr <- infer t
+
+      ty <-> TySum tl tr
+      pure ty
 
     Case t inl inr -> do
-      (ty, c)  <- collect env t
-      (tl, cl) <- collect env (Let Nothing t inl)
-      (tr, cr) <- collect env (Let Nothing t inr)
+      ty <- infer t
+      tl <- infer (Let Nothing t inl)
+      tr <- infer (Let Nothing t inr)
 
-      let c' = Set.fromList [tl <-> tr, ty <-> TySum tl tr]
-      pure (tl, c <> c' <> cl <> cr)
+      tl <-> tr
+      ty <-> TySum tl tr
 
-    If t1 t2 t3 -> do
-      (tp1, c1) <- collect env t1
-      (tp2, c2) <- collect env t2
-      (tp3, c3) <- collect env t3
+      pure tl
 
-      let c = Set.fromList [tp1 <-> TyBool, tp2 <-> tp3]
+    If cnd thn els -> do
+      tc <- infer cnd
+      tt <- infer thn
+      te <- infer els
 
-      pure (tp2, c <> c3 <> c2 <> c1)
+      tc <-> TyBool
+      tt <-> te
+
+      pure tt
 
     Var name -> do
-      case lookup name env of
+      env <- ask
+      case Map.lookup name env of
         Nothing     -> throwError (ValueNotFound name)
-        Just scheme -> (, Set.empty) <$> instantiate scheme
+        Just scheme -> instantiate scheme
 
-    Abs Nothing bnd -> do
+    Abs ty bnd -> do
       (x, body) <- unbind bnd
-      freshTp <- freshTyVar
-      let env' = (x, Scheme [] freshTp) : env
-      (tp, c) <- collect env' body
+      tp        <- fromMaybe freshTy (pure <$> ty)
+      tp'       <- infer body `withBinding` (x, forAll tp)
 
-      pure (TyFun freshTp tp, c)
+      pure (TyFun tp tp')
 
-    Abs (Just tp) bnd -> do
-      (x, body) <- unbind bnd
-      let env' = (x, Scheme [] tp) : env
-      (tp', c) <- collect env' body
+    App f x -> do
+      tf <- infer f
+      tx <- infer x
+      ty <- freshTy
 
-      pure (TyFun tp tp', c)
+      tf <-> TyFun tx ty
 
-    App t1 t2 -> do
-      (tp1, c1) <- collect env t1
-      s1        <- unify c1
-      (tp2, c2) <- collect env t2
-      s2        <- unify c2
-      freshTp <- freshTyVar
-
-      let funTp = TyFun (Subst.apply s1 tp2) freshTp
-      let c3 = Set.singleton (Subst.apply s2 tp1 <-> funTp)
-
-      pure (freshTp, c3 <> c2 <> c1)
+      pure ty
 
     Let Nothing v bnd -> do
-      (tpS, c) <- collect env v
-      s        <- unify c
+      env       <- ask
+      (tv, cv)  <- listen (infer v)
+      case solve cv of
+        Left err -> throwError err
+        Right sub -> do
+          let scheme = generalize (Subst.apply sub tv) (substEnv sub env)
+          (x, body) <- unbind bnd
+          (local (substEnv sub) (infer body)) `withBinding` (x, scheme)
 
-      let tpT    = Subst.apply s tpS
-      let env'   = substEnv s env
-      let scheme = generalize tpT env'
-
+    Let (Just tx) v bnd -> do
       (x, body) <- unbind bnd
-      let env''  = (x, scheme) : env'
+      tv        <- infer v
 
-      (tp, c') <- collect env'' body
+      tx <-> tv
 
-      pure (tp, c <> c')
+      infer body `withBinding` (x, forAll tx)
 
-    Let (Just tpX) v bnd -> do
-      (x, body) <- unbind bnd
-      (tpV, c)  <- collect env v
+unify :: Unify Subst
+unify = do
+  (sub, css) <- get
+  case css of
+    []            -> pure sub
+    ((s, t) : cs) -> do
 
-      let env' = (x, Scheme [] tpX) : env
-      (tp, c') <- collect env' body
+#if DEBUG_INFER
+      let x' = show (prettyType s)
+      let y' = show (prettyType t)
+      traceM $ " * Unifying " <> x' <> " with " <> y'
+#endif
 
-      let c'' = Set.singleton (tpX <-> tpV)
-      pure (tp, c'' <> c' <> c)
+      (sub', cs') <- unify' (s, t)
+      put (sub' <> sub, cs' ++ (Subst.onPair sub' <$> cs))
+      unify
 
-unify :: Set Constraint -> Infer Subst
-unify = go mempty . Set.toList
+unify' :: Constraint -> Unify UnifyState
+unify' c = case c of
+  (s, t) | s == t ->
+    pure (mempty, mempty)
+
+  (s@(TyVar n), t) | tyContains t n ->
+    throwError (InfiniteTypeError s t)
+
+  (s, t@(TyVar n)) | tyContains s n ->
+    throwError (InfiniteTypeError t s)
+
+  (s, TyVar n) ->
+    pure (Subst.singleton n s, mempty)
+
+  (TyVar n, t) ->
+    pure (Subst.singleton n t, mempty)
+
+  (TyFun a b, TyFun a' b') ->
+    unifyPair (a, a') (b, b')
+
+  (TyPair a b, TyPair a' b') ->
+    unifyPair (a, a') (b, b')
+
+  (TySum a b, TySum a' b') ->
+    unifyPair (a, a') (b, b')
+
+  (s, t) ->
+    throwError (UnificationError s t)
+
   where
-    go :: Subst -> [Constraint] -> Infer Subst
-    go acc [] =
-      pure acc
-
-    go acc (c : cs) =
-      case c of
-        (s, t) | s == t ->
-          go acc cs
-
-        (s@(TyVar n), t) | tyContains t n ->
-          throwError (InfiniteTypeError s t)
-
-        (s, t@(TyVar n)) | tyContains s n ->
-          throwError (InfiniteTypeError t s)
-
-        (s, TyVar n) ->
-          let sub = Subst.singleton n s
-           in go (sub <> acc) (Subst.onPairs sub cs)
-
-        (TyVar n, t) ->
-          let sub = Subst.singleton n t
-           in go (sub <> acc) (Subst.onPairs sub cs)
-
-        (TyFun a b, TyFun a' b') ->
-          unifyPair (a, b) (a', b')
-
-        (TyPair a b, TyPair a' b') ->
-          unifyPair (a, b) (a', b')
-
-        (TySum a b, TySum a' b') ->
-          unifyPair (a, b) (a', b')
-
-        (s, t) ->
-          throwError (UnificationError s t)
-
-        where
-          unifyPair (a, b) (a', b') = do
-            s1 <- unify ((a, a') +: Set.fromList cs)
-            s2 <- unify (Subst.onPair s1 (b, b') +: Set.fromList cs)
-            go (s1 <> s2 <> acc) cs
+    unifyPair (a, a') (b, b') = do
+      (s1, c1) <- unify' (a, a')
+      (s2, c2) <- unify' (Subst.onPair s1 (b, b'))
+      pure (s1 <> s2, c1 ++ c2)
 

@@ -10,10 +10,12 @@ module Mental.NameSupply
   , supplyName
   ) where
 
-import Protolude
+import           Protolude
 
-import Unbound.Generics.LocallyNameless (Fresh, fresh)
-import Control.Monad.Trans.Class
+import           Control.Monad.Trans.Class
+import           Control.Monad.Writer.Strict (WriterT)
+
+import           Unbound.Generics.LocallyNameless (Fresh, fresh)
 
 newtype NameSupplyT m a = NameSupplyT (StateT [[Char]] m a)
   deriving (Functor, Applicative, Monad, MonadState [[Char]], MonadTrans)
@@ -45,6 +47,12 @@ instance Monad m => MonadNameSupply (NameSupplyT m) where
     pure n
 
 instance MonadNameSupply m => MonadNameSupply (ExceptT e m) where
+  supplyName = lift supplyName
+
+instance MonadNameSupply m => MonadNameSupply (ReaderT e m) where
+  supplyName = lift supplyName
+
+instance (Monoid e, MonadNameSupply m) => MonadNameSupply (WriterT e m) where
   supplyName = lift supplyName
 
 instance Fresh m => Fresh (NameSupplyT m) where

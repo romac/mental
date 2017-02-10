@@ -14,7 +14,7 @@ import           Mental.Tree                  (Tree)
 import           Mental.Parser                (parser)
 import           Mental.PrettyPrint           (prettyTree, prettyType, prettyEvalError, prettyTypeError)
 import           Mental.Eval                  (traceEval)
-import           Mental.Infer                 (infer)
+import           Mental.Infer                 (inferType)
 
 import           Mentalist.Cmd                (Cmd( ..))
 import           Mentalist.CmdParser          (parseCmd)
@@ -69,7 +69,7 @@ evalTree tree =
 
 inferTree :: Tree -> IO ()
 inferTree tree =
-  case infer tree of
+  case inferType tree of
     Left err -> outputPretty (prettyTypeError err)
     Right ty -> outputPretty (prettyType ty)
 
