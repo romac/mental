@@ -17,6 +17,7 @@ import           Unbound.Generics.LocallyNameless
 
 import           Mental.Tree
 import           Mental.Type
+import           Mental.Primitive
 import           Mental.Lexer
 
 parser :: Parser Tree
@@ -54,9 +55,9 @@ pBool = reserved "True"  *> pure Tru
     <?> "boolean"
 
 pNatOp :: Parser Tree
-pNatOp =  try (reserved "succ"   *> (Succ   <$> pTerm))
-      <|> try (reserved "pred"   *> (Pred   <$> pTerm))
-      <|> try (reserved "iszero" *> (IsZero <$> pTerm))
+pNatOp =  try (reserved "succ"   *> pure (Prim Succ))
+      <|> try (reserved "pred"   *> pure (Prim Pred))
+      <|> try (reserved "iszero" *> pure (Prim IsZero))
 
 pIf :: Parser Tree
 pIf = do
@@ -91,11 +92,11 @@ pLetRec = do
   reserved "in"
   body <- pTerm
   let inner = Abs ty (bind name val)
-  pure $ Let ty inner (bind name (Fix body))
+  pure $ Let ty inner (bind name (App (Prim Fix) body))
   <?> "letrec"
 
 pFix :: Parser Tree
-pFix = reserved "fix" >> Fix <$> pTerm <?> "fix"
+pFix = reserved "fix" *> pure (Prim Fix) <?> "fix"
 
 pPair :: Parser Tree
 pPair = parens (do
@@ -148,7 +149,7 @@ pAbs = do
 pNat :: Parser Tree
 pNat = do
   n <- integer
-  pure (selfIter n Succ Zero)
+  pure (selfIter n (App (Prim Succ)) Zero)
   <?> "number"
 
 selfIter :: (Eq n, Num n) => n -> (a -> a) -> a -> a

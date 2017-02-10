@@ -22,6 +22,7 @@ import           Mental.Subst (Subst)
 import qualified Mental.Subst as Subst
 import           Mental.Tree
 import           Mental.Type
+import           Mental.Primitive
 import           Mental.NameSupply
 
 data TypeError
@@ -91,39 +92,38 @@ a <-> b = (a, b)
 (+:) :: Ord a => a -> Set a -> Set a
 (+:) = Set.insert
 
+pure' :: Ty -> Infer (Ty, Set Constraint)
+pure' ty = pure (ty, Set.empty)
+
 collect :: Env -> Tree -> Infer (Ty, Set Constraint)
 collect env term =
   case term of
-    Tru  -> pure (TyBool, Set.empty)
-    Fals -> pure (TyBool, Set.empty)
-    Zero -> pure (TyNat,  Set.empty)
+    Tru  -> pure' TyBool
+    Fals -> pure' TyBool
+    Zero -> pure' TyNat
 
-    Pred t -> do
-      (tp, c) <- collect env t
-      pure (TyNat, (tp <-> TyNat) +: c)
+    Prim Succ   -> pure' $ TyFun TyNat TyNat
+    Prim Pred   -> pure' $ TyFun TyNat TyNat
+    Prim IsZero -> pure' $ TyFun TyNat TyBool
 
-    Succ t -> do
-      (tp, c) <- collect env t
-      pure (TyNat, (tp <-> TyNat +: c))
+    Prim First -> do
+      a <- freshTyVar
+      b <- freshTyVar
+      pure' (TyFun (TyPair a b) a)
 
-    IsZero t -> do
-      (tp, c) <- collect env t
-      pure (TyBool, (tp <-> TyNat +: c))
+    Prim Second -> do
+      a <- freshTyVar
+      b <- freshTyVar
+      pure' (TyFun (TyPair a b) b)
+
+    Prim Fix -> do
+      a <- freshTyVar
+      pure' (TyFun (TyFun a a) a)
 
     Pair a b -> do
       (ta, ca) <- collect env a
       (tb, cb) <- collect env b
       pure (TyPair ta tb, ca <> cb)
-
-    First t -> do
-      (ta, tb) <- (,) <$> freshTyVar <*> freshTyVar
-      (tp, c) <- collect env t
-      pure (ta, tp <-> TyPair ta tb +: c)
-
-    Second t -> do
-      (ta, tb) <- (,) <$> freshTyVar <*> freshTyVar
-      (tp, c) <- collect env t
-      pure (tb, tp <-> TyPair ta tb +: c)
 
     Inl t ty -> do
       tr <- freshTyVar
@@ -183,12 +183,6 @@ collect env term =
       let c3 = Set.singleton (Subst.apply s2 tp1 <-> funTp)
 
       pure (freshTp, c3 <> c2 <> c1)
-
-    Fix t -> do
-      (ty, c) <- collect env t
-      a <- freshTyVar
-
-      pure (a, ty <-> TyFun a a +: c)
 
     Let Nothing v bnd -> do
       (tpS, c) <- collect env v

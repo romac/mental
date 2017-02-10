@@ -48,6 +48,7 @@ library
       Mental.NameSupply
       Mental.Parser
       Mental.PrettyPrint
+      Mental.Primitive
       Mental.Subst
       Mental.Tree
       Mental.Type

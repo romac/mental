@@ -3,6 +3,7 @@
 module Mental.PrettyPrint
   ( prettyTree
   , prettyType
+  , prettyPrim
   , prettyEvalError
   , prettyTypeError
   ) where
@@ -16,6 +17,7 @@ import           Unbound.Generics.LocallyNameless.Fresh (FreshM, runFreshM)
 
 import           Mental.Tree
 import           Mental.Type
+import           Mental.Primitive
 import           Mental.Eval (EvalError(..))
 import           Mental.Infer (TypeError(..))
 
@@ -23,10 +25,10 @@ ppNat :: Applicative m => Tree -> m Doc
 ppNat = text . T.pack . show . natToInt
   where
     natToInt :: Tree -> Int
-    natToInt Zero     = 0
-    natToInt (Succ n) = natToInt n + 1
-    natToInt (Pred n) = natToInt n - 1
-    natToInt _        = -1
+    natToInt Zero                = 0
+    natToInt (App (Prim Succ) n) = natToInt n + 1
+    natToInt (App (Prim Pred) n) = natToInt n - 1
+    natToInt _                   = -1
 
 bullet :: Applicative m => m Doc -> m Doc
 bullet = (text "-" <+>)
@@ -46,6 +48,17 @@ prettyTypeError err = runFreshM (errorDoc (pp err))
     pp (InfiniteTypeError s t) = "Cannot unify the infinite type:" <+> ppType s <+> " = " <+> ppType t
     pp (UnificationError s t)  = "Cannot unify:" <+> ppType s <+> "with" <+> ppType t
     pp (ValueNotFound n)       = "Value not found:" <+> ppName n
+
+prettyPrim :: Primitive -> Doc
+prettyPrim = runFreshM . ppPrim
+
+ppPrim :: Primitive -> FreshM Doc
+ppPrim Succ   = "succ"
+ppPrim Pred   = "pred"
+ppPrim IsZero = "iszero"
+ppPrim First  = "fst"
+ppPrim Second = "snd"
+ppPrim Fix    = "fix"
 
 prettyTree :: Tree -> Doc
 prettyTree = runFreshM . pprint
@@ -74,16 +87,12 @@ pprint Tru              = "True"
 pprint Fals             = "False"
 pprint Zero             = "0"
 pprint n@IsNumericValue = ppNat n
-pprint (Succ t)         = "succ" <+> pprint t
-pprint (Pred t)         = "pred" <+> pprint t
-pprint (IsZero t)       = "iszero" <+> pprint t
 pprint (Var n)          = ppName n
-pprint (Fix t)          = "fix" <+> pprint t
+pprint (Prim prim)      = ppPrim prim
 pprint (Pair a b)       = parens (pprint a <> comma <+> pprint b)
-pprint (First t)        = "fst" <+> pprint t
-pprint (Second t)       = "second" <+> pprint t
 pprint (Inl t as)       = "inl" <+> pprint t <+> "as" <+> ppType as
 pprint (Inr t as)       = "inr" <+> pprint t <+> "as" <+> ppType as
+
 pprint (Case t inl inr) = do
   (l, l') <- unbind inl
   (r, r') <- unbind inr
@@ -108,7 +117,7 @@ pprint (Abs tp bnd) = do
 pprint (Let tp val bnd) = do
   (x, bdy) <- unbind bnd
   case (val, bdy) of
-    (Abs _ val', Fix body) -> do
+    (Abs _ val', (App (Prim Fix) body)) -> do
       (_, val'') <- unbind val'
       text "letrec" <+> z x val'' body
     (_, body) ->

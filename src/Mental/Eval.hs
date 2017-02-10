@@ -16,6 +16,7 @@ import           Data.List.NonEmpty
 import           Unbound.Generics.LocallyNameless
 
 import           Mental.Tree
+import           Mental.Primitive
 
 data EvalError
   = NoRuleApplies Tree
@@ -51,15 +52,14 @@ path t f = do
     handleError err               = throwError err
 
 eval' :: Tree -> Eval Tree
-eval' (Var name)                     = throwError (VarNotInScope name)
-eval' (IsZero Zero)                  = pure Tru
-eval' (IsZero (Succ IsNumericValue)) = pure Fals
-eval' (Pred (Succ t@IsNumericValue)) = pure t
-eval' (If Tru thn _)                 = pure thn
-eval' (If Fals _ els)                = pure els
-eval' t@(Fix (Abs _ bnd)) = do
-  (x, body) <- unbind bnd
-  pure $ subst x t body
+eval' (Var name) =
+  throwError (VarNotInScope name)
+
+eval' (If Tru thn _) =
+  pure thn
+
+eval' (If Fals _ els) =
+  pure els
 
 eval' (Let _ v@IsValue bnd) = do
   (x, body) <- unbind bnd
@@ -69,14 +69,24 @@ eval' (App (Abs _ bnd) v@IsValue) = do
   (x, body) <- unbind bnd
   pure $ subst x v body
 
-eval' (App f@IsValue x) = App f  <$> eval' x
-eval' (App f x)         = App    <$> eval' f <*> pure x
-eval' (Let tp v bnd)    = Let tp <$> eval' v <*> pure bnd
-eval' (IsZero t)        = IsZero <$> eval' t
-eval' (Succ t)          = Succ   <$> eval' t
-eval' (Pred t)          = Pred   <$> eval' t
-eval' (Fix t)           = Fix    <$> eval' t
-eval' (If cnd thn els)  = If     <$> eval' cnd <*> pure thn <*> pure els
+eval' (App (Prim prim) v@IsValue) =
+  evalPrim prim v
+
+eval' (App f@IsValue x)   = App f           <$> eval' x
+eval' (App f x)           = App             <$> eval' f <*> pure x
+eval' (Let tp v bnd)      = Let tp          <$> eval' v <*> pure bnd
+eval' (If cnd thn els)    = If              <$> eval' cnd <*> pure thn <*> pure els
 
 eval' t = throwError (NoRuleApplies t)
+
+evalPrim :: Primitive -> Tree -> Eval Tree
+evalPrim IsZero Zero                             = pure Tru
+evalPrim IsZero (App (Prim Succ) IsNumericValue) = pure Fals
+evalPrim Pred (App (Prim Succ) t@IsNumericValue) = pure t
+
+evalPrim Fix t@(Abs _ bnd) = do
+  (x, body) <- unbind bnd
+  pure $ subst x (App (Prim Fix) t) body
+
+evalPrim prim t = throwError (NoRuleApplies (App (Prim prim) t))
 

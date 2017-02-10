@@ -13,6 +13,8 @@ import           Data.Typeable (Typeable)
 import           GHC.Generics  (Generic)
 import           Unbound.Generics.LocallyNameless
 
+import           Mental.Primitive
+
 type TyName = Name Ty
 
 data Ty
@@ -30,3 +32,5 @@ instance Subst Ty Ty where
   isvar (TyVar x) = Just (SubstName x)
   isvar _         = Nothing
 
+instance Subst Ty Primitive where
+  isvar _ = Nothing
