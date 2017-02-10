@@ -25,10 +25,10 @@ ppNat :: Applicative m => Tree -> m Doc
 ppNat = text . T.pack . show . natToInt
   where
     natToInt :: Tree -> Int
-    natToInt Zero                = 0
-    natToInt (App (Prim Succ) n) = natToInt n + 1
-    natToInt (App (Prim Pred) n) = natToInt n - 1
-    natToInt _                   = -1
+    natToInt Zero             = 0
+    natToInt (PrimApp Succ n) = natToInt n + 1
+    natToInt (PrimApp Pred n) = natToInt n - 1
+    natToInt _                = -1
 
 bullet :: Applicative m => m Doc -> m Doc
 bullet = (text "-" <+>)
@@ -117,7 +117,7 @@ pprint (Abs tp bnd) = do
 pprint (Let tp val bnd) = do
   (x, bdy) <- unbind bnd
   case (val, bdy) of
-    (Abs _ val', (App (Prim Fix) body)) -> do
+    (Abs _ val', (PrimApp Fix body)) -> do
       (_, val'') <- unbind val'
       text "letrec" <+> z x val'' body
     (_, body) ->

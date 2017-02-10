@@ -92,7 +92,7 @@ pLetRec = do
   reserved "in"
   body <- pTerm
   let inner = Abs ty (bind name val)
-  pure $ Let ty inner (bind name (App (Prim Fix) body))
+  pure $ Let ty inner (bind name (PrimApp Fix body))
   <?> "letrec"
 
 pFix :: Parser Tree
@@ -149,7 +149,7 @@ pAbs = do
 pNat :: Parser Tree
 pNat = do
   n <- integer
-  pure (selfIter n (App (Prim Succ)) Zero)
+  pure (selfIter n (PrimApp Succ) Zero)
   <?> "number"
 
 selfIter :: (Eq n, Num n) => n -> (a -> a) -> a -> a

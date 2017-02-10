@@ -69,7 +69,7 @@ eval' (App (Abs _ bnd) v@IsValue) = do
   (x, body) <- unbind bnd
   pure $ subst x v body
 
-eval' (App (Prim prim) v@IsValue) =
+eval' (PrimApp prim v@IsValue) =
   evalPrim prim v
 
 eval' (App f@IsValue x)   = App f           <$> eval' x
@@ -80,13 +80,13 @@ eval' (If cnd thn els)    = If              <$> eval' cnd <*> pure thn <*> pure 
 eval' t = throwError (NoRuleApplies t)
 
 evalPrim :: Primitive -> Tree -> Eval Tree
-evalPrim IsZero Zero                             = pure Tru
-evalPrim IsZero (App (Prim Succ) IsNumericValue) = pure Fals
-evalPrim Pred (App (Prim Succ) t@IsNumericValue) = pure t
+evalPrim IsZero Zero                          = pure Tru
+evalPrim IsZero (PrimApp Succ IsNumericValue) = pure Fals
+evalPrim Pred (PrimApp Succ t@IsNumericValue) = pure t
 
 evalPrim Fix t@(Abs _ bnd) = do
   (x, body) <- unbind bnd
-  pure $ subst x (App (Prim Fix) t) body
+  pure $ subst x (PrimApp Fix t) body
 
-evalPrim prim t = throwError (NoRuleApplies (App (Prim prim) t))
+evalPrim prim t = throwError (NoRuleApplies (PrimApp prim t))
 

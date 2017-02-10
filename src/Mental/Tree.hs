@@ -11,6 +11,7 @@ module Mental.Tree
   , isNumericValue
   , pattern IsValue
   , pattern IsNumericValue
+  , pattern PrimApp
   ) where
 
 import           Protolude
@@ -75,4 +76,7 @@ pattern IsValue <- (isValue -> True)
 
 pattern IsNumericValue :: Tree
 pattern IsNumericValue <- (isNumericValue -> True)
+
+pattern PrimApp :: Primitive -> Tree -> Tree
+pattern PrimApp prim t = App (Prim prim) t
 
