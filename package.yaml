@@ -22,8 +22,12 @@ executables:
       - -with-rtsopts=-N
     dependencies:
       - base
-      - protolude
       - mental
+      - megaparsec
+      - protolude
+      - readline
+      - text
+      - wl-pprint-text
 
 library:
   source-dirs: src

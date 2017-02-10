@@ -1,21 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Mental.REPL (runREPL) where
+module Mentalist.REPL (runREPL) where
 
 import           Protolude
 
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
-import           Text.Megaparsec (parse, parseErrorPretty)
-import           System.Console.Readline (readline, addHistory)
+import           Text.Megaparsec              (parse, parseErrorPretty)
+import           System.Console.Readline      (readline, addHistory)
 import           Text.PrettyPrint.Leijen.Text (Doc, putDoc)
 
-import           Mental.Tree        (Tree)
-import           Mental.Parser      (parser)
-import           Mental.PrettyPrint (prettyTree, prettyType, prettyEvalError, prettyTypeError)
-import           Mental.Eval        (traceEval)
-import           Mental.Infer       (infer)
-import           Mental.REPL.Cmd    (parseCmd, Cmd(..))
+import           Mental.Tree                  (Tree)
+import           Mental.Parser                (parser)
+import           Mental.PrettyPrint           (prettyTree, prettyType, prettyEvalError, prettyTypeError)
+import           Mental.Eval                  (traceEval)
+import           Mental.Infer                 (infer)
+
+import           Mentalist.Cmd                (Cmd( ..))
+import           Mentalist.CmdParser          (parseCmd)
 
 newline :: IO ()
 newline = T.putStrLn ""

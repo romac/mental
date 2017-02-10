@@ -47,8 +47,6 @@ library
       Mental.NameSupply
       Mental.Parser
       Mental.PrettyPrint
-      Mental.REPL
-      Mental.REPL.Cmd
       Mental.Subst
       Mental.Tree
       Mental.Type
@@ -62,8 +60,16 @@ executable mentalist
   ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
-    , protolude
     , mental
+    , megaparsec
+    , protolude
+    , readline
+    , text
+    , wl-pprint-text
+  other-modules:
+      Mentalist.Cmd
+      Mentalist.CmdParser
+      Mentalist.REPL
   default-language: Haskell2010
 
 test-suite mental-test

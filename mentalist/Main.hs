@@ -3,7 +3,7 @@ module Main where
 
 import Protolude
 
-import Mental.REPL (runREPL)
+import Mentalist.REPL (runREPL)
 
 main :: IO ()
 main = runREPL
