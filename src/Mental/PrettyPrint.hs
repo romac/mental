@@ -66,7 +66,7 @@ ppType TyBool                  = "Bool"
 ppType (TyVar n)               = ppName n
 ppType (TyFun a@(TyFun _ _) b) = parens (ppType a) <+> "->" <+> ppType b
 ppType (TyFun a b)             = ppType a <+> "->" <+> ppType b
-ppType (TyTuple a b)           = parens (ppType a <> "," <+> ppType b)
+ppType (TyPair a b)            = parens (ppType a <> "," <+> ppType b)
 ppType (TySum a b)             = parens (ppType a <+> "+" <+> ppType b)
 
 pprint :: Tree -> FreshM Doc
@@ -78,7 +78,7 @@ pprint (Succ t)         = "succ" <+> pprint t
 pprint (Pred t)         = "pred" <+> pprint t
 pprint (IsZero t)       = "iszero" <+> pprint t
 pprint (Var n)          = ppName n
-pprint (Tuple a b)      = parens (pprint a <> comma <+> pprint b)
+pprint (Pair a b)       = parens (pprint a <> comma <+> pprint b)
 pprint (First t)        = "fst" <+> pprint t
 pprint (Second t)       = "second" <+> pprint t
 pprint (Inl t as)       = "inl" <+> pprint t <+> "as" <+> ppType as

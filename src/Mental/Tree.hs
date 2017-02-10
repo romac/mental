@@ -35,7 +35,7 @@ data Tree
   | Abs (Maybe Ty) (Bind VarName Tree)
   | App Tree Tree
   | Let (Maybe Ty) Tree (Bind VarName Tree)
-  | Tuple Tree Tree
+  | Pair Tree Tree
   | First Tree
   | Second Tree
   | Inl Tree Ty
@@ -58,7 +58,7 @@ instance Subst Tree Ty where
 isValue :: Tree -> Bool
 isValue Tru         = True
 isValue Fals        = True
-isValue (Tuple a b) = isValue a && isValue b
+isValue (Pair a b)  = isValue a && isValue b
 isValue (Inl t _)   = isValue t
 isValue (Inr t _)   = isValue t
 isValue (Abs _ _)   = True

@@ -110,20 +110,20 @@ collect env term =
       (tp, c) <- collect env t
       pure (TyBool, (tp <-> TyNat +: c))
 
-    Tuple a b -> do
+    Pair a b -> do
       (ta, ca) <- collect env a
       (tb, cb) <- collect env b
-      pure (TyTuple ta tb, ca <> cb)
+      pure (TyPair ta tb, ca <> cb)
 
     First t -> do
       (ta, tb) <- (,) <$> freshTyVar <*> freshTyVar
       (tp, c) <- collect env t
-      pure (ta, tp <-> TyTuple ta tb +: c)
+      pure (ta, tp <-> TyPair ta tb +: c)
 
     Second t -> do
       (ta, tb) <- (,) <$> freshTyVar <*> freshTyVar
       (tp, c) <- collect env t
-      pure (tb, tp <-> TyTuple ta tb +: c)
+      pure (tb, tp <-> TyPair ta tb +: c)
 
     Inl t ty -> do
       tr <- freshTyVar
@@ -238,7 +238,7 @@ unify = go mempty . Set.toList
         (TyFun a b, TyFun a' b') ->
           unifyPair (a, b) (a', b')
 
-        (TyTuple a b, TyTuple a' b') ->
+        (TyPair a b, TyPair a' b') ->
           unifyPair (a, b) (a', b')
 
         (TySum a b, TySum a' b') ->

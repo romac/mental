@@ -20,7 +20,7 @@ data Ty
   | TyFun Ty Ty
   | TyNat
   | TyBool
-  | TyTuple Ty Ty
+  | TyPair Ty Ty
   | TySum Ty Ty
   deriving (Eq, Ord, Show, Generic, Typeable)
 

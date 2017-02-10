@@ -20,38 +20,38 @@ import           Mental.Type
 import           Mental.Lexer
 
 parser :: Parser Tree
-parser = between sc eof (nonIndented term)
+parser = between sc eof (nonIndented pTerm)
 
-term :: Parser Tree
-term = do
-  t : ts <- some factor
+pTerm :: Parser Tree
+pTerm = do
+  t : ts <- some pSimpleTerm
   pure (foldl' App t ts)
 
-factor :: Parser Tree
-factor =  reserved "True"  *> pure Tru
+pSimpleTerm :: Parser Tree
+pSimpleTerm =  reserved "True"  *> pure Tru
     <|> reserved "False" *> pure Fals
     <|> pNat
-    <|> reserved "succ"   *> (Succ   <$> term)
-    <|> reserved "pred"   *> (Pred   <$> term)
-    <|> reserved "iszero" *> (IsZero <$> term)
+    <|> reserved "succ"   *> (Succ   <$> pTerm)
+    <|> reserved "pred"   *> (Pred   <$> pTerm)
+    <|> reserved "iszero" *> (IsZero <$> pTerm)
     <|> Var <$> identifier
     <|> pIf
     <|> pAbs
     <|> pLet
-    <|> pTuple
+    <|> pPair
     <|> pSum "inl"
     <|> pSum "inr"
     <|> pCaseOf
-    <|> parens term
+    <|> parens pTerm
 
 pIf :: Parser Tree
 pIf = do
   reserved "if"
-  cond <- term
+  cond <- pTerm
   reserved "then"
-  thn <- term
+  thn <- pTerm
   reserved "else"
-  els <- term
+  els <- pTerm
   pure $ If cond thn els
 
 pLet :: Parser Tree
@@ -60,22 +60,22 @@ pLet = do
   name <- identifier
   tp <- optional (colon *> pTy)
   equal
-  val <- term
+  val <- pTerm
   reserved "in"
-  body <- term
+  body <- pTerm
   pure $ Let tp val (bind name body)
 
-pTuple :: Parser Tree
-pTuple = parens $ do
-  a <- term
+pPair :: Parser Tree
+pPair = parens $ do
+  a <- pTerm
   comma
-  b <- term
-  pure $ Tuple a b
+  b <- pTerm
+  pure $ Pair a b
 
 pSum :: Text -> Parser Tree
 pSum d = do
   reserved d
-  val <- term
+  val <- pTerm
   reserved "as"
   ty <- pTy
   pure $ Inl val ty
@@ -85,13 +85,13 @@ pCase d = do
   reserved d
   name <- identifier
   fatArrow
-  body <- term
+  body <- pTerm
   pure $ bind name body
 
 pCaseOf :: Parser Tree
 pCaseOf = do
   reserved "case"
-  val <- term
+  val <- pTerm
   reserved "of"
   inl:_ <- indentBlock (pure (IndentSome Nothing (pure) (pCase "inl")))
   inr:_ <- indentBlock (pure (IndentSome Nothing (pure) (pCase "inr")))
@@ -103,7 +103,7 @@ pAbs = do
   name <- identifier
   tp <- optional (colon *> pTy)
   dot
-  body <- term
+  body <- pTerm
   pure $ Abs tp (bind name body)
 
 pNat :: Parser Tree
@@ -124,19 +124,19 @@ pTy = do
     Just b' -> TyFun a b'
 
 pSimpleTy :: Parser Ty
-pSimpleTy =  try pTupleTy <|> try pSumTy <|> pBaseTy
+pSimpleTy =  try pPairTy <|> try pSumTy <|> pBaseTy
 
 pBaseTy :: Parser Ty
 pBaseTy =    reserved "Nat"  *> pure TyNat
          <|> reserved "Bool" *> pure TyBool
          <|> parens pTy
 
-pTupleTy :: Parser Ty
-pTupleTy = parens $ do
+pPairTy :: Parser Ty
+pPairTy = parens $ do
   a <- pTy
   comma
   b <- pTy
-  pure $ TyTuple a b
+  pure $ TyPair a b
 
 pSumTy :: Parser Ty
 pSumTy = do
