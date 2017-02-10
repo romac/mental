@@ -1,11 +1,11 @@
-name: row-poly
+name: mental
 version: '0.1.0.0'
 category: Development
 author: Romain Ruetschi
 maintainer: romain.ruetschi@gmail.com
 copyright: 2016 Romain Ruetschi
 license: BSD3
-github: romac/row-poly
+github: romac/mental
 extra-source-files:
   - README.md
 
@@ -13,9 +13,9 @@ ghc-options: -Wall -Werror
 default-extensions: NoImplicitPrelude
 
 executables:
-  row-poly:
+  mentalist:
     main: Main.hs
-    source-dirs: app
+    source-dirs: mentalist
     ghc-options:
       - -threaded
       - -rtsopts
@@ -23,7 +23,7 @@ executables:
     dependencies:
       - base
       - protolude
-      - row-poly
+      - mental
 
 library:
   source-dirs: src
@@ -42,7 +42,7 @@ library:
     - wl-pprint-text
 
 tests:
-  row-poly-test:
+  mental-test:
     main: Spec.hs
     source-dirs: test
     ghc-options:
@@ -51,4 +51,4 @@ tests:
       - -with-rtsopts=-N
     dependencies:
       - base
-      - row-poly
+      - mental

@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module RowPoly.NameSupply
+module Mental.NameSupply
   ( NameSupplyT(..)
   , NameSupply
   , runNameSupplyT

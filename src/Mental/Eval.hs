@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module RowPoly.Eval
+module Mental.Eval
   ( eval
   , traceEval
   , EvalError(..)
@@ -15,7 +15,7 @@ import           Data.List.NonEmpty
 
 import           Unbound.Generics.LocallyNameless
 
-import           RowPoly.Tree
+import           Mental.Tree
 
 data EvalError
   = NoRuleApplies Tree

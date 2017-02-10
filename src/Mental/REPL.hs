@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module RowPoly.REPL (runREPL) where
+module Mental.REPL (runREPL) where
 
 import           Protolude
 
@@ -10,12 +10,12 @@ import           Text.Megaparsec (parse, parseErrorPretty)
 import           System.Console.Readline (readline, addHistory)
 import           Text.PrettyPrint.Leijen.Text (Doc, putDoc)
 
-import           RowPoly.Tree        (Tree)
-import           RowPoly.Parser      (parser)
-import           RowPoly.PrettyPrint (prettyTree, prettyType, prettyEvalError, prettyTypeError)
-import           RowPoly.Eval        (traceEval)
-import           RowPoly.Infer       (infer)
-import           RowPoly.REPL.Cmd    (parseCmd, Cmd(..))
+import           Mental.Tree        (Tree)
+import           Mental.Parser      (parser)
+import           Mental.PrettyPrint (prettyTree, prettyType, prettyEvalError, prettyTypeError)
+import           Mental.Eval        (traceEval)
+import           Mental.Infer       (infer)
+import           Mental.REPL.Cmd    (parseCmd, Cmd(..))
 
 newline :: IO ()
 newline = T.putStrLn ""

@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module RowPoly.Infer
+module Mental.Infer
   ( unify
   , collect
   , infer
@@ -18,11 +18,11 @@ import           Data.List (lookup)
 import           Unbound.Generics.LocallyNameless hiding (Subst)
 import           Unbound.Generics.LocallyNameless.Internal.Fold
 
-import           RowPoly.Subst (Subst)
-import qualified RowPoly.Subst as Subst
-import           RowPoly.Tree
-import           RowPoly.Type
-import           RowPoly.NameSupply
+import           Mental.Subst (Subst)
+import qualified Mental.Subst as Subst
+import           Mental.Tree
+import           Mental.Type
+import           Mental.NameSupply
 
 data TypeError
   = ValueNotFound VarName

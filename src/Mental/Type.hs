@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module RowPoly.Type
+module Mental.Type
   ( TyName
   , Ty(..)
   ) where

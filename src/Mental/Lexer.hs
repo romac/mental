@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module RowPoly.Lexer where
+module Mental.Lexer where
 
 import           Protolude hiding (try, check)
 

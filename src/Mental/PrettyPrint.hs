@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module RowPoly.PrettyPrint
+module Mental.PrettyPrint
   ( prettyTree
   , prettyType
   , prettyEvalError
@@ -14,10 +14,10 @@ import           Text.PrettyPrint.Leijen.Text.Monadic
 import           Unbound.Generics.LocallyNameless (Name, name2String, unbind)
 import           Unbound.Generics.LocallyNameless.Fresh (FreshM, runFreshM)
 
-import           RowPoly.Tree
-import           RowPoly.Type
-import           RowPoly.Eval (EvalError(..))
-import           RowPoly.Infer (TypeError(..))
+import           Mental.Tree
+import           Mental.Type
+import           Mental.Eval (EvalError(..))
+import           Mental.Infer (TypeError(..))
 
 ppNat :: Applicative m => Tree -> m Doc
 ppNat = text . T.pack . show . natToInt

@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module RowPoly.Parser
+module Mental.Parser
   ( parser
   ) where
 
@@ -15,9 +15,9 @@ import           Text.Megaparsec.Lexer (IndentOpt(..))
 
 import           Unbound.Generics.LocallyNameless
 
-import           RowPoly.Tree
-import           RowPoly.Type
-import           RowPoly.Lexer
+import           Mental.Tree
+import           Mental.Type
+import           Mental.Lexer
 
 parser :: Parser Tree
 parser = between sc eof (nonIndented term)

@@ -1,5 +1,5 @@
 
-module RowPoly.REPL.Cmd where
+module Mental.REPL.Cmd where
 
 import Protolude hiding (try)
 

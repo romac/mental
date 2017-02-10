@@ -4,7 +4,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module RowPoly.Tree
+module Mental.Tree
   ( VarName
   , Tree(..)
   , isValue
@@ -19,7 +19,7 @@ import           Data.Typeable (Typeable)
 import           GHC.Generics  (Generic)
 import           Unbound.Generics.LocallyNameless
 
-import           RowPoly.Type
+import           Mental.Type
 
 type VarName = Name Tree
 

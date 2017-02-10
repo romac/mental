@@ -2,11 +2,11 @@
 --
 -- see: https://github.com/sol/hpack
 
-name:           row-poly
+name:           mental
 version:        0.1.0.0
 category:       Development
-homepage:       https://github.com/romac/row-poly#readme
-bug-reports:    https://github.com/romac/row-poly/issues
+homepage:       https://github.com/romac/mental#readme
+bug-reports:    https://github.com/romac/mental/issues
 author:         Romain Ruetschi
 maintainer:     romain.ruetschi@gmail.com
 copyright:      2016 Romain Ruetschi
@@ -20,7 +20,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/romac/row-poly
+  location: https://github.com/romac/mental
 
 library
   hs-source-dirs:
@@ -41,32 +41,32 @@ library
     , unbound-generics
     , wl-pprint-text
   exposed-modules:
-      RowPoly.Eval
-      RowPoly.Infer
-      RowPoly.Lexer
-      RowPoly.NameSupply
-      RowPoly.Parser
-      RowPoly.PrettyPrint
-      RowPoly.REPL
-      RowPoly.REPL.Cmd
-      RowPoly.Subst
-      RowPoly.Tree
-      RowPoly.Type
+      Mental.Eval
+      Mental.Infer
+      Mental.Lexer
+      Mental.NameSupply
+      Mental.Parser
+      Mental.PrettyPrint
+      Mental.REPL
+      Mental.REPL.Cmd
+      Mental.Subst
+      Mental.Tree
+      Mental.Type
   default-language: Haskell2010
 
-executable row-poly
+executable mentalist
   main-is: Main.hs
   hs-source-dirs:
-      app
+      mentalist
   default-extensions: NoImplicitPrelude
   ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
     , protolude
-    , row-poly
+    , mental
   default-language: Haskell2010
 
-test-suite row-poly-test
+test-suite mental-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   hs-source-dirs:
@@ -75,5 +75,5 @@ test-suite row-poly-test
   ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
-    , row-poly
+    , mental
   default-language: Haskell2010

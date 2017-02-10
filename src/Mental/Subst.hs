@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module RowPoly.Subst where
+module Mental.Subst where
 
 import           Protolude
 
@@ -8,7 +8,7 @@ import qualified Data.Map.Strict as Map
 
 import           Unbound.Generics.LocallyNameless (substs)
 
-import           RowPoly.Type
+import           Mental.Type
 
 newtype Subst = Subst (Map TyName Ty)
   deriving (Semigroup, Monoid)
