@@ -26,25 +26,37 @@ pTerm :: Parser Tree
 pTerm = do
   t : ts <- some pSimpleTerm
   pure (foldl' App t ts)
+  <?> "term"
 
 pSimpleTerm :: Parser Tree
-pSimpleTerm =  reserved "True"  *> pure Tru
-    <|> pNat
+pSimpleTerm =
+        try pNat
+    <|> try pBool
+    <|> try pNatOp
+    <|> try pVar
+    <|> try pIf
+    <|> try pAbs
+    <|> try pFix
+    <|> try pLetRec
+    <|> try pLet
+    <|> try pPair
+    <|> try pSum
+    <|> try pCaseOf
+    <|> try (parens pTerm)
+    <?> "term"
+
+pVar :: Parser Tree
+pVar = (Var <$> identifier) <?> "variable"
+
+pBool :: Parser Tree
+pBool = reserved "True"  *> pure Tru
     <|> reserved "False" *> pure Fals
-    <|> reserved "succ"   *> (Succ   <$> pTerm)
-    <|> reserved "pred"   *> (Pred   <$> pTerm)
-    <|> reserved "iszero" *> (IsZero <$> pTerm)
-    <|> Var <$> identifier
-    <|> pIf
-    <|> pAbs
-    <|> pFix
-    <|> pLetRec
-    <|> pLet
-    <|> pPair
-    <|> pSum "inl"
-    <|> pSum "inr"
-    <|> pCaseOf
-    <|> parens pTerm
+    <?> "boolean"
+
+pNatOp :: Parser Tree
+pNatOp =  try (reserved "succ"   *> (Succ   <$> pTerm))
+      <|> try (reserved "pred"   *> (Pred   <$> pTerm))
+      <|> try (reserved "iszero" *> (IsZero <$> pTerm))
 
 pIf :: Parser Tree
 pIf = do
@@ -55,6 +67,7 @@ pIf = do
   reserved "else"
   els <- pTerm
   pure $ If cond thn els
+  <?> "if-then-else"
 
 pLet :: Parser Tree
 pLet = do
@@ -66,6 +79,7 @@ pLet = do
   reserved "in"
   body <- pTerm
   pure $ Let tp val (bind name body)
+  <?> "let"
 
 pLetRec :: Parser Tree
 pLetRec = do
@@ -78,24 +92,30 @@ pLetRec = do
   body <- pTerm
   let inner = Abs ty (bind name val)
   pure $ Let ty inner (bind name (Fix body))
+  <?> "letrec"
 
 pFix :: Parser Tree
-pFix = reserved "fix" >> Fix <$> pTerm
+pFix = reserved "fix" >> Fix <$> pTerm <?> "fix"
 
 pPair :: Parser Tree
-pPair = parens $ do
-  a <- pTerm
-  comma
-  b <- pTerm
-  pure $ Pair a b
+pPair = parens (do
+    a <- pTerm
+    comma
+    b <- pTerm
+    pure $ Pair a b
+  ) <?> "pair"
 
-pSum :: Text -> Parser Tree
-pSum d = do
+pSum :: Parser Tree
+pSum = try (pSum' "inl") <|> pSum' "inr"
+
+pSum' :: Text -> Parser Tree
+pSum' d = do
   reserved d
   val <- pTerm
   reserved "as"
   ty <- pTy
   pure $ Inl val ty
+  <?> "sum"
 
 pCase :: Text -> Parser (Bind VarName Tree)
 pCase d = do
@@ -113,6 +133,7 @@ pCaseOf = do
   inl:_ <- indentBlock (pure (IndentSome Nothing (pure) (pCase "inl")))
   inr:_ <- indentBlock (pure (IndentSome Nothing (pure) (pCase "inr")))
   pure $ Case val inl inr
+  <?> "case"
 
 pAbs :: Parser Tree
 pAbs = do
@@ -122,11 +143,13 @@ pAbs = do
   dot
   body <- pTerm
   pure $ Abs tp (bind name body)
+  <?> "abs"
 
 pNat :: Parser Tree
 pNat = do
   n <- integer
   pure (selfIter n Succ Zero)
+  <?> "number"
 
 selfIter :: (Eq n, Num n) => n -> (a -> a) -> a -> a
 selfIter 0 _ !x = x
@@ -139,6 +162,7 @@ pTy = do
   pure $ case b of
     Nothing -> a
     Just b' -> TyFun a b'
+  <?> "type"
 
 pSimpleTy :: Parser Ty
 pSimpleTy =  try pPairTy <|> try pSumTy <|> pBaseTy
