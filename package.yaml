@@ -55,4 +55,6 @@ tests:
       - -with-rtsopts=-N
     dependencies:
       - base
+      - protolude
       - mental
+

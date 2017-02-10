@@ -81,5 +81,6 @@ test-suite mental-test
   ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
+    , protolude
     , mental
   default-language: Haskell2010
