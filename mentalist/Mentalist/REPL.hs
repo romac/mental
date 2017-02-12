@@ -80,11 +80,11 @@ parsePrintEval file code = do
     header "Parsed"
     outputPretty (prettyTree tree)
 
-    header "Evaluation"
-    evalTree tree
-
     header "Type"
     inferTree tree
+
+    header "Evaluation"
+    evalTree tree
 
 runREPL :: IO ()
 runREPL = do

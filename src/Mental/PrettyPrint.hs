@@ -109,14 +109,14 @@ pprint (Abs tp bnd) = do
   parens (
     text "\\" <>
     ppName x <>
-    ppBind tp <>
-    text "." <+>
+    ppBind tp <+>
+    text "->" <+>
     pprint body)
 
 pprint (Let tp val bnd) = do
   (x, bdy) <- unbind bnd
   case (val, bdy) of
-    (Abs _ val', (PrimApp Fix body)) -> do
+    (Abs _ val', PrimApp Fix body) -> do
       (_, val'') <- unbind val'
       text "letrec" <+> z x val'' body
     (_, body) ->

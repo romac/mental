@@ -26,10 +26,10 @@ alphabet :: [[Char]]
 alphabet = (:[]) <$> ['a'..'z']
 
 supply :: [[Char]] -> [[Char]]
-supply syms = syms ++ go syms 1
+supply syms = syms <> go syms 1
   where
     go :: [[Char]] -> Int -> [[Char]]
-    go s n = ((<> show n) <$> s) ++ go s (n + 1)
+    go s n = ((<> show n) <$> s) <> go s (n + 1)
 
 runNameSupplyT :: Monad m => NameSupplyT m a -> m a
 runNameSupplyT (NameSupplyT st) = evalStateT st (supply alphabet)

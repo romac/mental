@@ -60,7 +60,8 @@ newtype Infer a
            , MonadNameSupply
            , MonadReader Env
            , MonadWriter (Set Constraint)
-           , MonadError TypeError)
+           , MonadError TypeError
+           )
 
 type UnifyState = (Subst, [Constraint])
 
@@ -69,7 +70,12 @@ newtype Unify a
              UnifyState
              (Except TypeError)
              a)
-  deriving (Functor, Applicative, Monad, MonadState UnifyState, MonadError TypeError)
+             deriving ( Functor
+                      , Applicative
+                      , Monad
+                      , MonadState UnifyState
+                      , MonadError TypeError
+                      )
 
 data Scheme = Forall [TyName] Ty
   deriving (Eq, Show, Generic, Typeable)
@@ -136,7 +142,7 @@ ftvEnv :: Env -> Set TyName
 ftvEnv env = Set.fromList (toListOf fv (Map.elems env))
 
 substEnv :: Subst -> Env -> Env
-substEnv s env = Map.map (substScheme s) env
+substEnv s = Map.map (substScheme s)
 
 substScheme :: Subst -> Scheme -> Scheme
 substScheme (Subst s) (Forall vars ty) = Forall vars (Subst.apply s' ty)
@@ -166,12 +172,10 @@ addConstraint a b = addConstraint' (a, b)
 (<->) = addConstraint
 
 withBinding :: Infer Ty -> (VarName, Scheme) -> Infer Ty
-withBinding a (x, scheme) = do
-  let scope env = Map.insert x scheme env
-  local scope a
+withBinding a (x, scheme) = local (Map.insert x scheme) a
 
 infer :: Tree -> Infer Ty
-infer tree = do
+infer tree =
   case tree of
     Tru  -> pure TyBool
     Fals -> pure TyBool
@@ -262,7 +266,7 @@ infer tree = do
         Right sub -> do
           let scheme = generalize (Subst.apply sub tv) (substEnv sub env)
           (x, body) <- unbind bnd
-          (local (substEnv sub) (infer body)) `withBinding` (x, scheme)
+          local (substEnv sub) (infer body) `withBinding` (x, scheme)
 
     Let (Just tx) v bnd -> do
       (x, body) <- unbind bnd
@@ -286,7 +290,7 @@ unify = do
 #endif
 
       (sub', cs') <- unify' (s, t)
-      put (sub' <> sub, cs' ++ (Subst.onPair sub' <$> cs))
+      put (sub' <> sub, cs' <> (Subst.onPair sub' <$> cs))
       unify
 
 unify' :: Constraint -> Unify UnifyState
@@ -322,5 +326,5 @@ unify' c = case c of
     unifyPair (a, a') (b, b') = do
       (s1, c1) <- unify' (a, a')
       (s2, c2) <- unify' (Subst.onPair s1 (b, b'))
-      pure (s1 <> s2, c1 ++ c2)
+      pure (s1 <> s2, c1 <> c2)
 

@@ -141,7 +141,7 @@ pAbs = do
   lambda
   name <- identifier
   tp <- optional (colon *> pTy)
-  dot
+  arrow
   body <- pTerm
   pure $ Abs tp (bind name body)
   <?> "abs"
@@ -149,12 +149,12 @@ pAbs = do
 pNat :: Parser Tree
 pNat = do
   n <- integer
-  pure (selfIter n (PrimApp Succ) Zero)
+  pure (iter n (PrimApp Succ) Zero)
   <?> "number"
 
-selfIter :: (Eq n, Num n) => n -> (a -> a) -> a -> a
-selfIter 0 _ !x = x
-selfIter !n f !x = selfIter (n - 1) f (f x)
+iter :: (Eq n, Num n) => n -> (a -> a) -> a -> a
+iter 0  _ !x = x
+iter !n f !x = iter (n - 1) f (f x)
 
 pTy :: Parser Ty
 pTy = do
