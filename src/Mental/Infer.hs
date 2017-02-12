@@ -52,7 +52,8 @@ newtype Infer a
               TypeError
               (WriterT
                 (Set Constraint)
-                (NameSupplyT FreshM))) a)
+                NameSupply))
+            a)
   deriving ( Functor
            , Applicative
            , Monad
@@ -87,7 +88,7 @@ forAll = Forall []
 
 runInfer :: Env -> Infer a -> InferResult (a, Set Constraint)
 runInfer env (Infer x) =
-  case runFreshM (runNameSupplyT (runWriterT (runExceptT (runReaderT x env)))) of
+  case runNameSupply (runWriterT (runExceptT (runReaderT x env))) of
     (Left err, _) -> Left err
     (Right a, cs) -> Right (a, cs)
 

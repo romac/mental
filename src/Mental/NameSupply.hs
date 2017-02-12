@@ -15,10 +15,13 @@ import           Protolude
 import           Control.Monad.Trans.Class
 import           Control.Monad.Writer.Strict (WriterT)
 
-import           Unbound.Generics.LocallyNameless (Fresh, fresh)
+import           Unbound.Generics.LocallyNameless (Fresh, FreshMT, runFreshMT)
 
-newtype NameSupplyT m a = NameSupplyT (StateT [[Char]] m a)
-  deriving (Functor, Applicative, Monad, MonadState [[Char]], MonadTrans)
+newtype NameSupplyT m a = NameSupplyT (StateT [[Char]] (FreshMT m) a)
+  deriving (Functor, Applicative, Monad, Fresh, MonadState [[Char]])
+
+instance MonadTrans NameSupplyT where
+  lift = NameSupplyT . lift . lift
 
 type NameSupply = NameSupplyT Identity
 
@@ -32,10 +35,10 @@ supply syms = syms <> go syms 1
     go s n = ((<> show n) <$> s) <> go s (n + 1)
 
 runNameSupplyT :: Monad m => NameSupplyT m a -> m a
-runNameSupplyT (NameSupplyT st) = evalStateT st (supply alphabet)
+runNameSupplyT (NameSupplyT st) = runFreshMT (evalStateT st (supply alphabet))
 
 runNameSupply :: NameSupply a -> a
-runNameSupply (NameSupplyT st) = runIdentity $ evalStateT st (supply alphabet)
+runNameSupply = runIdentity . runNameSupplyT
 
 class Monad m => MonadNameSupply m where
   supplyName :: m [Char]
@@ -54,7 +57,4 @@ instance MonadNameSupply m => MonadNameSupply (ReaderT e m) where
 
 instance (Monoid e, MonadNameSupply m) => MonadNameSupply (WriterT e m) where
   supplyName = lift supplyName
-
-instance Fresh m => Fresh (NameSupplyT m) where
-  fresh = lift . fresh
 
