@@ -6,13 +6,15 @@ import           Protolude
 
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
+
 import           Text.Megaparsec              (parse, parseErrorPretty)
+import           Text.Megaparsec.Text         (Parser)
 import           System.Console.Readline      (readline, addHistory)
 import           Text.PrettyPrint.Leijen.Text (Doc, putDoc)
 
 import           Mental.Tree                  (Tree)
-import           Mental.Parser                (parser)
-import           Mental.PrettyPrint           (prettyTree, prettyType, prettyEvalError, prettyTypeError)
+import           Mental.Parser                (termParser, moduleParser)
+import           Mental.PrettyPrint           (prettyModule, prettyTree, prettyTy, prettyEvalError, prettyTypeError)
 import           Mental.Eval                  (traceEval)
 import           Mental.Infer                 (inferType)
 
@@ -43,23 +45,23 @@ over (Just x) f = f x
 
 showType :: Text -> IO ()
 showType code = do
-  tree <- parseCode "<repl>" code
+  tree <- parseCode termParser "<repl>" code
   over tree inferTree
 
 loadFile :: FilePath -> IO ()
 loadFile path = do
   code <- T.readFile path
-  parsePrintEval path code
+  parsePrintEvalModule path code
 
-parseCode :: FilePath -> Text -> IO (Maybe Tree)
-parseCode file code =
-  case parse parser file code of
+parseCode :: Parser a -> FilePath -> Text -> IO (Maybe a)
+parseCode withParser file code =
+  case parse withParser file code of
     Left err -> do
       putStr (parseErrorPretty err)
       pure Nothing
 
-    Right tree ->
-      pure (Just tree)
+    Right res ->
+      pure (Just res)
 
 evalTree :: Tree -> IO ()
 evalTree tree =
@@ -71,11 +73,11 @@ inferTree :: Tree -> IO ()
 inferTree tree =
   case inferType tree of
     Left err -> outputPretty (prettyTypeError err)
-    Right ty -> outputPretty (prettyType ty)
+    Right ty -> outputPretty (prettyTy ty)
 
-parsePrintEval :: FilePath -> Text -> IO ()
-parsePrintEval file code = do
-  maybeTree <- parseCode file code
+parsePrintEvalTerm :: FilePath -> Text -> IO ()
+parsePrintEvalTerm file code = do
+  maybeTree <- parseCode termParser file code
   over maybeTree $ \tree -> do
     header "Parsed"
     outputPretty (prettyTree tree)
@@ -85,6 +87,13 @@ parsePrintEval file code = do
 
     header "Evaluation"
     evalTree tree
+
+parsePrintEvalModule :: FilePath -> Text -> IO ()
+parsePrintEvalModule file code = do
+  maybeMod <- parseCode moduleParser file code
+  over maybeMod $ \mod' -> do
+    header "Parsed"
+    outputPretty (prettyModule mod')
 
 runREPL :: IO ()
 runREPL = do
@@ -102,7 +111,7 @@ runREPL = do
 
     Just line -> do
       addHistory line
-      parsePrintEval "<repl>" (T.pack line)
+      parsePrintEvalTerm "<repl>" (T.pack line)
       newline
       runREPL
 

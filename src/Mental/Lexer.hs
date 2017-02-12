@@ -27,10 +27,10 @@ scn       = L.space (void spaceChar) (L.skipLineComment "--") empty
 sc        = L.space (void (oneOf ("\t " :: [Char]))) (L.skipLineComment "--") empty
 
 lexeme :: Parser a -> Parser a
-lexeme    = L.lexeme sc
+lexeme = L.lexeme sc
 
 integer :: Parser Integer
-integer   = lexeme L.integer
+integer = lexeme L.integer
 
 symbol :: Text -> Parser Text
 symbol s = T.pack <$> L.symbol sc (T.unpack s)
@@ -54,10 +54,19 @@ dot       = void $ symbol "."
 plus      = void $ symbol "+"
 
 reserved :: Text -> Parser ()
-reserved w = string (T.unpack w) *> notFollowedBy alphaNumChar *> sc
+reserved w = text' w *> notFollowedBy alphaNumChar *> sc
+
+text :: Text -> Parser Text
+text t = T.pack <$> string (T.unpack t)
+
+text' :: Text -> Parser ()
+text' = void . text
 
 identifier :: Parser (Name a)
-identifier = (s2n . T.unpack) <$> identifier'
+identifier = textToName <$> identifier'
+
+textToName :: Text -> Name a
+textToName = s2n . T.unpack
 
 identifier' :: Parser Text
 identifier' = (lexeme . try) (p >>= check)

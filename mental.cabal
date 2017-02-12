@@ -41,6 +41,7 @@ library
     , unbound-generics
     , wl-pprint-text
   exposed-modules:
+      Mental.Decl
       Mental.Error
       Mental.Eval
       Mental.Infer

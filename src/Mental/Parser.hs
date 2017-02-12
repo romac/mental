@@ -1,9 +1,13 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Mental.Parser
-  ( parser
-  ) where
+-- module Mental.Parser
+--   ( moduleParser
+--   , replEntryParser
+--   , termParser
+--   ) where
+--
+module Mental.Parser where
 
 import           Protolude hiding (try)
 
@@ -15,13 +19,59 @@ import           Text.Megaparsec.Lexer (IndentOpt(..))
 
 import           Unbound.Generics.LocallyNameless
 
+import           Mental.Decl
 import           Mental.Tree
 import           Mental.Type
 import           Mental.Primitive
 import           Mental.Lexer
 
-parser :: Parser Tree
-parser = between sc eof (nonIndented pTerm)
+moduleParser :: Parser Module
+moduleParser = between scn eof (nonIndented pModule)
+
+replEntryParser :: Parser (Either Decl Tree)
+replEntryParser = between sc eof $ do
+  optDecl <- optional pDecl
+  case optDecl of
+    Just decl -> pure (Left decl)
+    Nothing   -> Right <$> pTerm
+
+termParser :: Parser Tree
+termParser = between sc eof (nonIndented pTerm)
+
+pModule :: Parser Module
+pModule = Module <$> pDecl `sepEndBy` scn
+
+pDecl :: Parser Decl
+pDecl = try pFunDecl <|> pTyDecl
+
+pFunDecl :: Parser Decl
+pFunDecl = do
+  nameTy <- (optional . try) $ do
+    name <- identifier'
+    colon
+    ty <- pTy
+    scn
+    pure (name, ty)
+
+  (name, ty) <- case nameTy of
+    Just (name, ty) -> (,) <$> text name <*> pure (Just ty)
+    Nothing         -> (,) <$> identifier' <*> pure Nothing
+
+  sc
+  equal
+  body <- pTerm
+  let ident = textToName name
+  pure $ FunDecl ident ty (bind ident body)
+  <?> "function declaration"
+
+pTyDecl :: Parser Decl
+pTyDecl = do
+  reserved "type"
+  name <- identifier
+  equal
+  ty <- pTy
+  pure $ TyDecl name (bind name ty)
+  <?> "type alias"
 
 pTerm :: Parser Tree
 pTerm = do
@@ -166,11 +216,12 @@ pTy = do
   <?> "type"
 
 pSimpleTy :: Parser Ty
-pSimpleTy =  try pPairTy <|> try pSumTy <|> pBaseTy
+pSimpleTy = try pPairTy <|> try pSumTy <|> pBaseTy
 
 pBaseTy :: Parser Ty
 pBaseTy =    reserved "Nat"  *> pure TyNat
          <|> reserved "Bool" *> pure TyBool
+         <|> (TyVar <$> identifier)
          <|> parens pTy
 
 pPairTy :: Parser Ty

@@ -2,8 +2,10 @@
 
 module Mental.PrettyPrint
   ( prettyTree
-  , prettyType
+  , prettyTy
   , prettyPrim
+  , prettyDecl
+  , prettyModule
   , prettyEvalError
   , prettyTypeError
   ) where
@@ -15,19 +17,11 @@ import           Text.PrettyPrint.Leijen.Text.Monadic
 import           Unbound.Generics.LocallyNameless (Name, name2String, unbind)
 import           Unbound.Generics.LocallyNameless.Fresh (FreshM, runFreshM)
 
+import           Mental.Decl
 import           Mental.Tree
 import           Mental.Type
 import           Mental.Primitive
 import           Mental.Error
-
-ppNat :: Applicative m => Tree -> m Doc
-ppNat = text . T.pack . show . natToInt
-  where
-    natToInt :: Tree -> Int
-    natToInt Zero             = 0
-    natToInt (PrimApp Succ n) = natToInt n + 1
-    natToInt (PrimApp Pred n) = natToInt n - 1
-    natToInt _                = -1
 
 bullet :: Applicative m => m Doc -> m Doc
 bullet = (text "-" <+>)
@@ -38,15 +32,38 @@ errorDoc err = nest 4 (text "Error:" <$> bullet err)
 prettyEvalError :: EvalError -> Doc
 prettyEvalError err = runFreshM (nest 4 (errorDoc (pp err)))
   where
-    pp (NoRuleApplies t) = "Cannot further reduce term:" <+> pprint t
+    pp (NoRuleApplies t) = "Cannot further reduce term:" <+> ppTree t
     pp (VarNotInScope n) = "Variable not in scope:" <+> ppName n
 
 prettyTypeError :: TypeError -> Doc
 prettyTypeError err = runFreshM (errorDoc (pp err))
   where
-    pp (InfiniteTypeError s t) = "Cannot unify the infinite type:" <+> ppType s <+> " = " <+> ppType t
-    pp (UnificationError s t)  = "Cannot unify:" <+> ppType s <+> "with" <+> ppType t
+    pp (InfiniteTypeError s t) = "Cannot unify the infinite type:" <+> ppTy s <+> " = " <+> ppTy t
+    pp (UnificationError s t)  = "Cannot unify:" <+> ppTy s <+> "with" <+> ppTy t
     pp (ValueNotFound n)       = "Value not found:" <+> ppName n
+
+prettyModule :: Module -> Doc
+prettyModule = runFreshM . ppModule
+
+ppModule :: Module -> FreshM Doc
+ppModule (Module decls) = vcat (traverse pp decls)
+  where pp decl = ppDecl decl <> line
+
+prettyDecl :: Decl -> Doc
+prettyDecl = runFreshM . ppDecl
+
+ppDecl :: Decl -> FreshM Doc
+ppDecl (FunDecl name (Just ty) bnd) =
+  ppName name <+> ":" <+> ppTy ty
+    <$$> ppDecl (FunDecl name Nothing bnd)
+
+ppDecl (FunDecl _ Nothing bnd) = do
+  (name, body) <- unbind bnd
+  ppName name <+> "=" <+> ppTree body
+
+ppDecl (TyDecl _ bnd) = do
+  (name, ty) <- unbind bnd
+  "type" <+> ppName name <+> ppTy ty
 
 prettyPrim :: Primitive -> Doc
 prettyPrim = runFreshM . ppPrim
@@ -60,60 +77,55 @@ ppPrim Second = "snd"
 ppPrim Fix    = "fix"
 
 prettyTree :: Tree -> Doc
-prettyTree = runFreshM . pprint
+prettyTree = runFreshM . ppTree
 
 ppName :: Name a -> FreshM Doc
 ppName = text . T.pack . name2String
 
 ppBind :: Maybe Ty -> FreshM Doc
 ppBind Nothing   = empty
-ppBind (Just tp) = ":" <+> ppType tp
+ppBind (Just tp) = ":" <+> ppTy tp
 
-prettyType :: Ty -> Doc
-prettyType = runFreshM . ppType
+prettyTy :: Ty -> Doc
+prettyTy = runFreshM . ppTy
 
-ppType :: Ty -> FreshM Doc
-ppType TyNat                   = "Nat"
-ppType TyBool                  = "Bool"
-ppType (TyVar n)               = ppName n
-ppType (TyFun a@(TyFun _ _) b) = parens (ppType a) <+> "->" <+> ppType b
-ppType (TyFun a b)             = ppType a <+> "->" <+> ppType b
-ppType (TyPair a b)            = parens (ppType a <> "," <+> ppType b)
-ppType (TySum a b)             = parens (ppType a <+> "+" <+> ppType b)
+ppTy :: Ty -> FreshM Doc
+ppTy TyNat                   = "Nat"
+ppTy TyBool                  = "Bool"
+ppTy (TyVar n)               = ppName n
+ppTy (TyFun a@(TyFun _ _) b) = parens (ppTy a) <+> "->" <+> ppTy b
+ppTy (TyFun a b)             = ppTy a <+> "->" <+> ppTy b
+ppTy (TyPair a b)            = parens (ppTy a <> "," <+> ppTy b)
+ppTy (TySum a b)             = parens (ppTy a <+> "+" <+> ppTy b)
 
-pprint :: Tree -> FreshM Doc
-pprint Tru              = "True"
-pprint Fals             = "False"
-pprint Zero             = "0"
-pprint n@IsNumericValue = ppNat n
-pprint (Var n)          = ppName n
-pprint (Prim prim)      = ppPrim prim
-pprint (Pair a b)       = parens (pprint a <> comma <+> pprint b)
-pprint (Inl t as)       = "inl" <+> pprint t <+> "as" <+> ppType as
-pprint (Inr t as)       = "inr" <+> pprint t <+> "as" <+> ppType as
+ppTree :: Tree -> FreshM Doc
+ppTree Tru              = "True"
+ppTree Fals             = "False"
+ppTree Zero             = "0"
+ppTree n@IsNumericValue = ppNat n
+ppTree (Var n)          = ppName n
+ppTree (Prim prim)      = ppPrim prim
+ppTree (Pair a b)       = parens (ppTree a <> comma <+> ppTree b)
+ppTree (Inl t as)       = "inl" <+> ppTree t <+> "as" <+> ppTy as
+ppTree (Inr t as)       = "inr" <+> ppTree t <+> "as" <+> ppTy as
 
-pprint (Case t inl inr) = do
+ppTree (Case t inl inr) = do
   (l, l') <- unbind inl
   (r, r') <- unbind inr
-  let lDoc = "inl" <+> ppName l <+> "=>" <+> pprint l'
-  let rDoc = "inr" <+> ppName r <+> "=>" <+> pprint r'
-  "case" <+> pprint t <+> "of" <$$> nest 2 (lDoc <$$> rDoc)
+  let lDoc = "inl" <+> ppName l <+> "=>" <+> ppTree l'
+  let rDoc = "inr" <+> ppName r <+> "=>" <+> ppTree r'
+  "case" <+> ppTree t <+> "of" <$$> nest 2 (lDoc <$$> rDoc)
 
-pprint (If cnd thn els) =
-  "if" <+> pprint cnd
-       <+> "then" <+> pprint thn
-       <+> "else" <+> pprint els
+ppTree (If cnd thn els) =
+  "if" <+> ppTree cnd
+       <+> "then" <+> ppTree thn
+       <+> "else" <+> ppTree els
 
-pprint (Abs tp bnd) = do
+ppTree (Abs tp bnd) = do
   (x, body) <- unbind bnd
-  parens (
-    text "\\" <>
-    ppName x <>
-    ppBind tp <+>
-    text "->" <+>
-    pprint body)
+  text "\\" <> ppName x <> ppBind tp <+> text "->" <+> ppTree body
 
-pprint (Let tp val bnd) = do
+ppTree (Let tp val bnd) = do
   (x, bdy) <- unbind bnd
   case (val, bdy) of
     (Abs _ val', PrimApp Fix body) -> do
@@ -123,16 +135,21 @@ pprint (Let tp val bnd) = do
       text "let" <+> z x val body
   where
     z x value body =
-      ppName x <+>
-      ppBind tp <+>
-      text "=" <+>
-      pprint value <+>
-      text "in" <+>
-      pprint body
+      ppName x <+> ppBind tp <+> text "=" <+> ppTree value
+        <+> text "in" <+> ppTree body
 
-pprint (App f x@(App _ _)) =
-  pprint f <+> parens (pprint x)
+ppTree (App f x@(App _ _)) =
+  ppTree f <+> parens (ppTree x)
 
-pprint (App f x) =
-  pprint f <+> pprint x
+ppTree (App f x) =
+  ppTree f <+> ppTree x
+
+ppNat :: Applicative m => Tree -> m Doc
+ppNat = text . T.pack . show . natToInt
+  where
+    natToInt :: Tree -> Int
+    natToInt Zero             = 0
+    natToInt (PrimApp Succ n) = natToInt n + 1
+    natToInt (PrimApp Pred n) = natToInt n - 1
+    natToInt _                = -1
 
