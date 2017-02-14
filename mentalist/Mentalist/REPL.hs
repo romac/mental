@@ -9,8 +9,8 @@ import qualified Data.Text.IO as T
 
 import           Text.Megaparsec              (parse, parseErrorPretty)
 import           Text.Megaparsec.Text         (Parser)
-import           System.Console.Readline      (readline, addHistory)
-import           Text.PrettyPrint.Leijen.Text (Doc, putDoc)
+import           Text.PrettyPrint.Leijen.Text (Doc)
+import           System.Console.Haskeline
 
 import           Mental.Decl                  (Module)
 import           Mental.Tree                  (Tree)
@@ -21,31 +21,37 @@ import           Mental.Infer                 (inferTree, inferModule)
 
 import           Mentalist.REPL.Cmd           (Cmd( ..), parseCmd)
 
-type REPL a = IO a
+type REPL a = InputT IO a
 
-newline :: REPL ()
-newline = T.putStrLn ""
+outputText :: Text -> REPL ()
+outputText = outputStr . T.unpack
+
+outputTextLn :: Text -> REPL ()
+outputTextLn = outputStrLn . T.unpack
+
+outputNewline :: REPL ()
+outputNewline = outputText "\n"
 
 outputPretty :: Doc -> REPL ()
-outputPretty d = putDoc d >> newline
+outputPretty = outputTextLn . show
 
 header :: Text -> REPL ()
 header h = do
-  newline
-  putStrLn $ "=== " <> h <> ": ==="
+  outputNewline
+  outputTextLn $ "=== " <> h <> ": ==="
 
 execCmd :: Cmd -> REPL ()
 execCmd CmdQuit          = pure ()
-execCmd CmdNone          = noCmd >> runREPL
-execCmd (CmdUnknown cmd) = unknownCmd cmd >> runREPL
-execCmd (CmdLoad path)   = loadFileCmd path >> runREPL
-execCmd (CmdType expr)   = showTypeCmd expr >> runREPL
+execCmd CmdNone          = noCmd            >> repl
+execCmd (CmdUnknown cmd) = unknownCmd cmd   >> repl
+execCmd (CmdLoad path)   = loadFileCmd path >> repl
+execCmd (CmdType expr)   = showTypeCmd expr >> repl
 
 noCmd :: REPL ()
-noCmd = T.putStrLn "please specific a command"
+noCmd = outputTextLn "please specific a command"
 
 unknownCmd :: Text -> REPL ()
-unknownCmd cmd = T.putStrLn ("unknown command '" <> cmd <> "'")
+unknownCmd cmd = outputTextLn $ "unknown command '" <> cmd <> "'"
 
 showTypeCmd :: Text -> REPL ()
 showTypeCmd code = do
@@ -54,7 +60,7 @@ showTypeCmd code = do
 
 loadFileCmd :: FilePath -> REPL ()
 loadFileCmd path = do
-  code <- T.readFile path
+  code <- liftIO $ T.readFile path
   parsePrintEvalModule path code
 
 parseCode :: Parser a -> FilePath -> Text -> REPL (Maybe a)
@@ -70,19 +76,19 @@ parseCode withParser file code =
 evalTree :: Tree -> REPL ()
 evalTree tree =
   case traceEvalTree tree of
-    Left err    -> outputPretty (prettyEvalError err)
+    Left err    -> outputPretty (prettyEvalError err) >> outputNewline
     Right steps -> forM_ steps (outputPretty . prettyTree)
 
 runInferTree :: Tree -> REPL ()
 runInferTree tree =
   case inferTree tree of
-    Left err -> outputPretty (prettyTypeError err)
+    Left err -> outputPretty (prettyTypeError err) >> outputNewline
     Right ty -> outputPretty (prettyTy ty)
 
 runInferModule :: Module -> REPL () -> REPL ()
 runInferModule mod' onSuccess =
   case inferModule mod' of
-    Left err -> outputPretty (prettyTypeError err)
+    Left err -> outputPretty (prettyTypeError err) >> outputNewline
     Right () -> onSuccess
 
 parsePrintEvalTerm :: FilePath -> Text -> REPL ()
@@ -98,7 +104,7 @@ parsePrintEvalTerm file code = do
     header "Evaluation"
     evalTree tree
 
-    newline
+    outputNewline
 
 parsePrintEvalModule :: FilePath -> Text -> REPL ()
 parsePrintEvalModule file code = do
@@ -109,24 +115,23 @@ parsePrintEvalModule file code = do
 
     runInferModule mod' (header "Typechecks!")
 
-runREPL :: REPL ()
-runREPL = runREPL' $ do
-  maybeLine <- readline "Mental> "
+runREPL :: IO ()
+runREPL = runInputT defaultSettings repl
+
+repl :: REPL ()
+repl = do
+  maybeLine <- getInputLine "Mental> "
   case maybeLine of
     Nothing ->
-      newline
+      outputNewline
 
     Just "" ->
-      runREPL
+      repl
 
-    Just line@(':' : cmd) -> do
-      addHistory line
+    Just (':' : cmd) -> do
       execCmd (parseCmd (T.pack cmd))
 
     Just line -> do
-      addHistory line
       parsePrintEvalTerm "<repl>" (T.pack line)
-      runREPL
-
-  where runREPL' = identity
+      repl
 

@@ -10,8 +10,6 @@ flags: {}
 
 extra-package-dbs: []
 
-extra-include-dirs:
-  - /usr/local/Cellar/readline/7.0.1/include
+extra-include-dirs: []
 
-extra-lib-dirs:
-  - /usr/local/Cellar/readline/7.0.1/lib
+extra-lib-dirs: []
