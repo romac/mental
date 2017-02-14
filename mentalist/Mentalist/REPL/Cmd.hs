@@ -1,6 +1,7 @@
 
-module Mentalist.CmdParser
-  ( parseCmd
+module Mentalist.REPL.Cmd
+  ( Cmd(..)
+  , parseCmd
   ) where
 
 import           Protolude hiding (try)
@@ -10,7 +11,13 @@ import qualified Data.Text as T
 import           Text.Megaparsec
 import           Text.Megaparsec.Text
 
-import           Mentalist.Cmd (Cmd(..))
+data Cmd
+  = CmdQuit
+  | CmdLoad FilePath
+  | CmdType Text
+  | CmdUnknown Text
+  | CmdNone
+  deriving (Eq, Show)
 
 parseCmd :: Text -> Cmd
 parseCmd input | T.null input = CmdNone
@@ -46,6 +53,7 @@ cmdType = do
   eof
   pure (CmdType expr)
 
+-- FIXME
 pathParser :: Parser FilePath
 pathParser = some (noneOf ['\t', ' '])
 

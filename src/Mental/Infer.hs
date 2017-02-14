@@ -9,8 +9,8 @@
 
 module Mental.Infer
   ( unify
-  , inferType
-  , TypeError(..)
+  , inferTree
+  , inferModule
   ) where
 
 #define DEBUG_INFER 0
@@ -28,18 +28,19 @@ import           Unbound.Generics.LocallyNameless.Internal.Fold
 
 import           Mental.Subst (Subst(..))
 import qualified Mental.Subst as Subst
+import           Mental.Decl
 import           Mental.Tree
 import           Mental.Type
 import           Mental.Error
 import           Mental.Primitive
 import           Mental.NameSupply
+import           Mental.Unify
 
 #if DEBUG_INFER
 import           Mental.PrettyPrint (prettyType)
 #endif
 
 type InferResult = Either TypeError
-type UnifyResult = Either TypeError
 
 type Env = Map VarName Scheme
 
@@ -64,20 +65,6 @@ newtype Infer a
            , MonadError TypeError
            )
 
-type UnifyState = (Subst, [Constraint])
-
-newtype Unify a
-  = Unify (StateT
-             UnifyState
-             (Except TypeError)
-             a)
-             deriving ( Functor
-                      , Applicative
-                      , Monad
-                      , MonadState UnifyState
-                      , MonadError TypeError
-                      )
-
 data Scheme = Forall [TyName] Ty
   deriving (Eq, Show, Generic, Typeable)
 
@@ -86,17 +73,14 @@ instance Alpha Scheme
 forAll :: Ty -> Scheme
 forAll = Forall []
 
+-- forAll' :: Ty -> Scheme
+-- forAll' ty = Forall (toListOf fv ty) ty
+
 runInfer :: Env -> Infer a -> InferResult (a, Set Constraint)
 runInfer env (Infer x) =
   case runNameSupply (runWriterT (runExceptT (runReaderT x env))) of
     (Left err, _) -> Left err
     (Right a, cs) -> Right (a, cs)
-
-runUnify :: UnifyState -> Unify a -> UnifyResult a
-runUnify st (Unify a) = runExcept (evalStateT a st)
-
-solve :: Set Constraint -> UnifyResult Subst
-solve cs = runUnify (Subst.empty, Set.toList cs) unify
 
 #if DEBUG_INFER
 debugConstraints :: Monad m => Set Constraint -> m ()
@@ -122,11 +106,23 @@ debugSubst (Subst sub) = do
         traceM ("# " <> l <> " / " <> r)
 #endif
 
-inferType :: Tree -> InferResult Ty
-inferType tree = do
+inferTree :: Tree -> InferResult Ty
+inferTree tree = do
   (ty, cs) <- runInfer Map.empty (infer tree)
   sub      <- solve cs
   pure (Subst.apply sub ty)
+
+-- FIXME
+inferModule :: Module -> InferResult ()
+inferModule (Module _ decls) = do
+  let env = mconcat (declToEnv <$> decls)
+  ((), cs) <- runInfer env (forM_ decls inferDecl)
+  void (solve cs)
+    where
+      declToEnv (FunDecl name (Just ty) _) = Map.singleton name (quantify ty)
+      declToEnv (FunDecl name Nothing _)   = Map.singleton name (Forall [s2n "a"] (TyVar (s2n "a")))
+      -- declToEnv (TyDecl name ty)           = Map.singleton name (quantify ty)
+      quantify ty = Forall (toListOf fv ty) ty
 
 freshTyName :: (Fresh m, MonadNameSupply m) => m TyName
 freshTyName = do
@@ -135,9 +131,6 @@ freshTyName = do
 
 freshTy :: (Fresh m, MonadNameSupply m) => m Ty
 freshTy = TyVar <$> freshTyName
-
-ftvTy :: Ty -> Set TyName
-ftvTy ty = Set.fromList (toListOf fv ty)
 
 ftvEnv :: Env -> Set TyName
 ftvEnv env = Set.fromList (toListOf fv (Map.elems env))
@@ -148,9 +141,6 @@ substEnv s = Map.map (substScheme s)
 substScheme :: Subst -> Scheme -> Scheme
 substScheme (Subst s) (Forall vars ty) = Forall vars (Subst.apply s' ty)
   where s' = Subst (foldr Map.delete s vars)
-
-tyContains :: Ty -> TyName -> Bool
-tyContains ty n = Set.member n (ftvTy ty)
 
 generalize :: Ty -> Env -> Scheme
 generalize ty env = runIdentity $ do
@@ -163,17 +153,20 @@ instantiate (Forall params ty) = do
   let subs = params `zip` freshTys
   pure $ substs subs ty
 
-addConstraint' :: Constraint -> Infer ()
-addConstraint' = tell . Set.singleton
-
 addConstraint :: Ty -> Ty -> Infer ()
-addConstraint a b = addConstraint' (a, b)
+addConstraint a b = tell (Set.singleton (a, b))
 
 (<->) :: Ty -> Ty -> Infer ()
 (<->) = addConstraint
 
 withBinding :: Infer Ty -> (VarName, Scheme) -> Infer Ty
 withBinding a (x, scheme) = local (Map.insert x scheme) a
+
+-- FIXME
+inferDecl :: Decl -> Infer Ty
+inferDecl (FunDecl _ ty bnd) = do
+  (_, body) <- unbind bnd
+  infer (Let ty body bnd)
 
 infer :: Tree -> Infer Ty
 infer tree =
@@ -276,56 +269,4 @@ infer tree =
       tx <-> tv
 
       infer body `withBinding` (x, forAll tx)
-
-unify :: Unify Subst
-unify = do
-  (sub, css) <- get
-  case css of
-    []            -> pure sub
-    ((s, t) : cs) -> do
-
-#if DEBUG_INFER
-      let x' = show (prettyType s)
-      let y' = show (prettyType t)
-      traceM $ " * Unifying " <> x' <> " with " <> y'
-#endif
-
-      (sub', cs') <- unify' (s, t)
-      put (sub' <> sub, cs' <> (Subst.onPair sub' <$> cs))
-      unify
-
-unify' :: Constraint -> Unify UnifyState
-unify' c = case c of
-  (s, t) | s == t ->
-    pure (mempty, mempty)
-
-  (s@(TyVar n), t) | tyContains t n ->
-    throwError (InfiniteTypeError s t)
-
-  (s, t@(TyVar n)) | tyContains s n ->
-    throwError (InfiniteTypeError t s)
-
-  (s, TyVar n) ->
-    pure (Subst.singleton n s, mempty)
-
-  (TyVar n, t) ->
-    pure (Subst.singleton n t, mempty)
-
-  (TyFun a b, TyFun a' b') ->
-    unifyPair (a, a') (b, b')
-
-  (TyPair a b, TyPair a' b') ->
-    unifyPair (a, a') (b, b')
-
-  (TySum a b, TySum a' b') ->
-    unifyPair (a, a') (b, b')
-
-  (s, t) ->
-    throwError (UnificationError s t)
-
-  where
-    unifyPair (a, a') (b, b') = do
-      (s1, c1) <- unify' (a, a')
-      (s2, c2) <- unify' (Subst.onPair s1 (b, b'))
-      pure (s1 <> s2, c1 <> c2)
 

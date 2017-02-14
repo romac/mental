@@ -19,7 +19,7 @@ reservedWords :: [Text]
 reservedWords =
   [ "if", "then", "else", "let", "letrec", "in", "case", "of", "as", "fix"
   , "True", "False", "succ", "pred", "iszero" , "fst", "snd", "inl", "inr"
-  , "Nat", "Bool"
+  , "Nat", "Bool", "module", "type", "data", "where"
   ]
 
 scn, sc :: Parser ()
@@ -74,7 +74,7 @@ identifier' = (lexeme . try) (p >>= check)
     p       = T.pack <$> ((:) <$> letterChar <*> many alphaNumChar)
     check x = if x `elem` reservedWords
                  then fail $ "keyword " <> show x <> " cannot be an identifier"
-                 else return x
+                 else pure x
 
 nonIndented :: Parser a -> Parser a
 nonIndented = L.nonIndented scn

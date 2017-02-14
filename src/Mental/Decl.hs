@@ -10,11 +10,14 @@ import           Mental.Type
 
 import           Unbound.Generics.LocallyNameless
 
+type ModuleName = Name Module
+
 data Module
   = Module
-  { progDecls :: [Decl]
+  { _modName :: ModuleName
+  , _modDecls :: [Decl]
   }
-  deriving (Show)
+  deriving (Show, Generic, Typeable)
 
 data Decl
   = FunDecl !VarName !(Maybe Ty) !(Bind VarName Tree)

@@ -4,14 +4,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Mental.Eval
-  ( eval
-  , traceEval
+  ( evalTree
+  , traceEvalTree
   , EvalError(..)
   ) where
 
 import           Protolude hiding (head)
 
-import           Control.Monad.Except
 import           Data.List.NonEmpty
 
 import           Unbound.Generics.LocallyNameless
@@ -22,18 +21,27 @@ import           Mental.Primitive
 
 type EvalResult = Either EvalError
 
-newtype Eval a = Eval (ExceptT EvalError FreshM a)
-  deriving (Functor, Applicative, Monad, Fresh, MonadError EvalError)
+data EvalState
+  = EvalState
+    { _treeEnv :: Map VarName Tree
+    }
+
+instance Monoid EvalState where
+  mempty = EvalState mempty
+  EvalState a `mappend` EvalState b = EvalState (a `mappend` b)
+
+newtype Eval a = Eval (StateT EvalState (ExceptT EvalError FreshM) a)
+  deriving (Functor, Applicative, Monad, Fresh, MonadState EvalState, MonadError EvalError)
 
 runEval :: Eval a -> EvalResult a
-runEval (Eval x) = runFreshM (runExceptT x)
+runEval (Eval x) = runFreshM (runExceptT (evalStateT x mempty))
 
-eval :: Tree -> EvalResult Tree
-eval tree = last <$> traceEval tree
+evalTree :: Tree -> EvalResult Tree
+evalTree tree = last <$> traceEvalTree tree
 
-traceEval :: Tree -> EvalResult (NonEmpty Tree)
-traceEval tree =
-  case runEval (path tree eval') of
+traceEvalTree :: Tree -> EvalResult (NonEmpty Tree)
+traceEvalTree tree =
+  case runEval (path tree eval) of
     Right ts               -> Right ts
     Left (NoRuleApplies t) -> Right (t :| [])
     Left err               -> Left err
@@ -49,33 +57,33 @@ path t f = do
     handleError (NoRuleApplies _) = pure (t :| [])
     handleError err               = throwError err
 
-eval' :: Tree -> Eval Tree
-eval' (Var name) =
+eval :: Tree -> Eval Tree
+eval (Var name) =
   throwError (VarNotInScope name)
 
-eval' (If Tru thn _) =
+eval (If Tru thn _) =
   pure thn
 
-eval' (If Fals _ els) =
+eval (If Fals _ els) =
   pure els
 
-eval' (Let _ v@IsValue bnd) = do
+eval (Let _ v@IsValue bnd) = do
   (x, body) <- unbind bnd
   pure $ subst x v body
 
-eval' (App (Abs _ bnd) v@IsValue) = do
+eval (App (Abs _ bnd) v@IsValue) = do
   (x, body) <- unbind bnd
   pure $ subst x v body
 
-eval' (PrimApp prim v@IsValue) =
+eval (PrimApp prim v@IsValue) =
   evalPrim prim v
 
-eval' (App f@IsValue x)   = App f  <$> eval' x
-eval' (App f x)           = App    <$> eval' f <*> pure x
-eval' (Let tp v bnd)      = Let tp <$> eval' v <*> pure bnd
-eval' (If cnd thn els)    = If     <$> eval' cnd <*> pure thn <*> pure els
+eval (App f@IsValue x)   = App f  <$> eval x
+eval (App f x)           = App    <$> eval f <*> pure x
+eval (Let tp v bnd)      = Let tp <$> eval v <*> pure bnd
+eval (If cnd thn els)    = If     <$> eval cnd <*> pure thn <*> pure els
 
-eval' t =
+eval t =
   throwError (NoRuleApplies t)
 
 evalPrim :: Primitive -> Tree -> Eval Tree

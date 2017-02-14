@@ -12,48 +12,52 @@ import           Text.Megaparsec.Text         (Parser)
 import           System.Console.Readline      (readline, addHistory)
 import           Text.PrettyPrint.Leijen.Text (Doc, putDoc)
 
+import           Mental.Decl                  (Module)
 import           Mental.Tree                  (Tree)
 import           Mental.Parser                (termParser, moduleParser)
 import           Mental.PrettyPrint           (prettyModule, prettyTree, prettyTy, prettyEvalError, prettyTypeError)
-import           Mental.Eval                  (traceEval)
-import           Mental.Infer                 (inferType)
+import           Mental.Eval                  (traceEvalTree)
+import           Mental.Infer                 (inferTree, inferModule)
 
-import           Mentalist.Cmd                (Cmd( ..))
-import           Mentalist.CmdParser          (parseCmd)
+import           Mentalist.REPL.Cmd           (Cmd( ..), parseCmd)
 
-newline :: IO ()
+type REPL a = IO a
+
+newline :: REPL ()
 newline = T.putStrLn ""
 
-outputPretty :: Doc -> IO ()
+outputPretty :: Doc -> REPL ()
 outputPretty d = putDoc d >> newline
 
-header :: Text -> IO ()
+header :: Text -> REPL ()
 header h = do
   newline
   putStrLn $ "=== " <> h <> ": ==="
 
-doCmd :: Cmd -> IO ()
-doCmd CmdQuit          = pure ()
-doCmd CmdNone          = T.putStrLn "please specific a command" >> runREPL
-doCmd (CmdUnknown cmd) = T.putStrLn ("unknown command '" <> cmd <> "'") >> runREPL
-doCmd (CmdLoad path)   = loadFile path >> runREPL
-doCmd (CmdType expr)   = showType expr >> runREPL
+execCmd :: Cmd -> REPL ()
+execCmd CmdQuit          = pure ()
+execCmd CmdNone          = noCmd >> runREPL
+execCmd (CmdUnknown cmd) = unknownCmd cmd >> runREPL
+execCmd (CmdLoad path)   = loadFileCmd path >> runREPL
+execCmd (CmdType expr)   = showTypeCmd expr >> runREPL
 
-over :: Applicative f => Maybe a -> (a -> f ()) -> f ()
-over Nothing _  = pure ()
-over (Just x) f = f x
+noCmd :: REPL ()
+noCmd = T.putStrLn "please specific a command"
 
-showType :: Text -> IO ()
-showType code = do
-  tree <- parseCode termParser "<repl>" code
-  over tree inferTree
+unknownCmd :: Text -> REPL ()
+unknownCmd cmd = T.putStrLn ("unknown command '" <> cmd <> "'")
 
-loadFile :: FilePath -> IO ()
-loadFile path = do
+showTypeCmd :: Text -> REPL ()
+showTypeCmd code = do
+  tree <- parseCode termParser "<interactive>" code
+  forM_ tree runInferTree
+
+loadFileCmd :: FilePath -> REPL ()
+loadFileCmd path = do
   code <- T.readFile path
   parsePrintEvalModule path code
 
-parseCode :: Parser a -> FilePath -> Text -> IO (Maybe a)
+parseCode :: Parser a -> FilePath -> Text -> REPL (Maybe a)
 parseCode withParser file code =
   case parse withParser file code of
     Left err -> do
@@ -63,41 +67,51 @@ parseCode withParser file code =
     Right res ->
       pure (Just res)
 
-evalTree :: Tree -> IO ()
+evalTree :: Tree -> REPL ()
 evalTree tree =
-  case traceEval tree of
+  case traceEvalTree tree of
     Left err    -> outputPretty (prettyEvalError err)
     Right steps -> forM_ steps (outputPretty . prettyTree)
 
-inferTree :: Tree -> IO ()
-inferTree tree =
-  case inferType tree of
+runInferTree :: Tree -> REPL ()
+runInferTree tree =
+  case inferTree tree of
     Left err -> outputPretty (prettyTypeError err)
     Right ty -> outputPretty (prettyTy ty)
 
-parsePrintEvalTerm :: FilePath -> Text -> IO ()
+runInferModule :: Module -> REPL () -> REPL ()
+runInferModule mod' onSuccess =
+  case inferModule mod' of
+    Left err -> outputPretty (prettyTypeError err)
+    Right () -> onSuccess
+
+parsePrintEvalTerm :: FilePath -> Text -> REPL ()
 parsePrintEvalTerm file code = do
   maybeTree <- parseCode termParser file code
-  over maybeTree $ \tree -> do
+  forM_ maybeTree $ \tree -> do
     header "Parsed"
     outputPretty (prettyTree tree)
 
     header "Type"
-    inferTree tree
+    runInferTree tree
 
     header "Evaluation"
     evalTree tree
 
-parsePrintEvalModule :: FilePath -> Text -> IO ()
+    newline
+
+parsePrintEvalModule :: FilePath -> Text -> REPL ()
 parsePrintEvalModule file code = do
   maybeMod <- parseCode moduleParser file code
-  over maybeMod $ \mod' -> do
+  forM_ maybeMod $ \mod' -> do
     header "Parsed"
     outputPretty (prettyModule mod')
 
-runREPL :: IO ()
-runREPL = do
-  maybeLine <- readline "> "
+    runInferModule mod' (header "Typechecks!")
+
+runREPL :: REPL ()
+runREPL = runREPL' $ do
+  maybeLine <- readline "Mental> "
   case maybeLine of
     Nothing ->
       newline
@@ -105,13 +119,14 @@ runREPL = do
     Just "" ->
       runREPL
 
-    Just (':' : cmd) -> do
-      addHistory (':' : cmd)
-      doCmd (parseCmd (T.pack cmd))
+    Just line@(':' : cmd) -> do
+      addHistory line
+      execCmd (parseCmd (T.pack cmd))
 
     Just line -> do
       addHistory line
       parsePrintEvalTerm "<repl>" (T.pack line)
-      newline
       runREPL
+
+  where runREPL' = identity
 

@@ -53,6 +53,7 @@ library
       Mental.Subst
       Mental.Tree
       Mental.Type
+      Mental.Unify
   default-language: Haskell2010
 
 executable mentalist
@@ -70,9 +71,8 @@ executable mentalist
     , text
     , wl-pprint-text
   other-modules:
-      Mentalist.Cmd
-      Mentalist.CmdParser
       Mentalist.REPL
+      Mentalist.REPL.Cmd
   default-language: Haskell2010
 
 test-suite mental-test

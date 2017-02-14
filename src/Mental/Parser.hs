@@ -39,7 +39,12 @@ termParser :: Parser Tree
 termParser = between sc eof (nonIndented pTerm)
 
 pModule :: Parser Module
-pModule = Module <$> pDecl `sepEndBy` scn
+pModule = do
+  reserved "module"
+  name <- identifier
+  reserved "where"
+  decls <- pDecl `sepEndBy` scn
+  pure $ Module name decls
 
 pDecl :: Parser Decl
 pDecl = try pFunDecl <|> pTyDecl

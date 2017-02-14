@@ -46,8 +46,11 @@ prettyModule :: Module -> Doc
 prettyModule = runFreshM . ppModule
 
 ppModule :: Module -> FreshM Doc
-ppModule (Module decls) = vcat (traverse pp decls)
-  where pp decl = ppDecl decl <> line
+ppModule (Module name decls) =
+  "module" <+> ppName name <+> "where" <> line <> line <> decls'
+    where
+      decls' = vcat (traverse pp decls)
+      pp decl = ppDecl decl <> line
 
 prettyDecl :: Decl -> Doc
 prettyDecl = runFreshM . ppDecl

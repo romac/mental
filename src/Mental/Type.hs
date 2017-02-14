@@ -5,13 +5,17 @@
 module Mental.Type
   ( TyName
   , Ty(..)
+  , tyContains
+  , ftvTy
   ) where
 
 import           Protolude
 
+import qualified Data.Set as Set
 import           Data.Typeable (Typeable)
 import           GHC.Generics  (Generic)
 import           Unbound.Generics.LocallyNameless
+import           Unbound.Generics.LocallyNameless.Internal.Fold
 
 import           Mental.Primitive
 
@@ -34,4 +38,10 @@ instance Subst Ty Ty where
 
 instance Subst Ty Primitive where
   isvar _ = Nothing
+
+ftvTy :: Ty -> Set TyName
+ftvTy ty = Set.fromList (toListOf fv ty)
+
+tyContains :: Ty -> TyName -> Bool
+tyContains ty n = Set.member n (ftvTy ty)
 
