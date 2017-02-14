@@ -70,10 +70,10 @@ unify' c = case c of
   (s, t) | s == t ->
     pure (mempty, mempty)
 
-  (s@(TyVar n), t) | tyContains t n ->
+  (s@(TyVar n), t) | n `tyOccurs` t ->
     throwError (InfiniteTypeError s t)
 
-  (s, t@(TyVar n)) | tyContains s n ->
+  (s, t@(TyVar n)) | n `tyOccurs` t ->
     throwError (InfiniteTypeError t s)
 
   (s, TyVar n) ->

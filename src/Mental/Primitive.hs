@@ -3,12 +3,10 @@
 
 module Mental.Primitive where
 
-import Protolude
+import           Protolude
 
 import           Data.Typeable (Typeable)
 import           GHC.Generics  (Generic)
-
-import           Unbound.Generics.LocallyNameless
 
 data Primitive
   = Succ
@@ -17,7 +15,5 @@ data Primitive
   | First
   | Second
   | Fix
-  deriving (Eq, Ord, Show, Generic, Typeable)
-
-instance Alpha Primitive
+  deriving (Eq, Ord, Show, Read, Enum, Generic, Typeable)
 

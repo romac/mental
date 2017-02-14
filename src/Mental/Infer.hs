@@ -23,17 +23,15 @@ import qualified Data.Map.Strict as Map
 
 import           Control.Monad.Writer.Strict hiding (First, (<>))
 
-import           Unbound.Generics.LocallyNameless hiding (Subst)
-import           Unbound.Generics.LocallyNameless.Internal.Fold
-
+import           Mental.Decl
+import           Mental.Error
+import           Mental.Name
+import           Mental.NameSupply
+import           Mental.Primitive
 import           Mental.Subst (Subst(..))
 import qualified Mental.Subst as Subst
-import           Mental.Decl
 import           Mental.Tree
 import           Mental.Type
-import           Mental.Error
-import           Mental.Primitive
-import           Mental.NameSupply
 import           Mental.Unify
 
 #if DEBUG_INFER
@@ -58,7 +56,6 @@ newtype Infer a
   deriving ( Functor
            , Applicative
            , Monad
-           , Fresh
            , MonadNameSupply
            , MonadReader Env
            , MonadWriter (Set Constraint)
@@ -66,9 +63,7 @@ newtype Infer a
            )
 
 data Scheme = Forall [TyName] Ty
-  deriving (Eq, Show, Generic, Typeable)
-
-instance Alpha Scheme
+  deriving (Eq, Ord, Show, Read, Generic, Typeable)
 
 forAll :: Ty -> Scheme
 forAll = Forall []
@@ -120,20 +115,18 @@ inferModule (Module _ decls) = do
   void (solve cs)
     where
       declToEnv (FunDecl name (Just ty) _) = Map.singleton name (quantify ty)
-      declToEnv (FunDecl name Nothing _)   = Map.singleton name (Forall [s2n "a"] (TyVar (s2n "a")))
+      declToEnv (FunDecl name Nothing _)   = Map.singleton name (Forall [mkName "a"] (TyVar (mkName "a")))
       -- declToEnv (TyDecl name ty)           = Map.singleton name (quantify ty)
-      quantify ty = Forall (toListOf fv ty) ty
+      quantify ty = Forall (Set.toList (tyFtv ty)) ty
 
-freshTyName :: (Fresh m, MonadNameSupply m) => m TyName
-freshTyName = do
-  name <- s2n <$> supplyName
-  fresh name
+freshTyName :: MonadNameSupply m => m TyName
+freshTyName = mkNameStr <$> supplyName
 
-freshTy :: (Fresh m, MonadNameSupply m) => m Ty
+freshTy :: MonadNameSupply m => m Ty
 freshTy = TyVar <$> freshTyName
 
 ftvEnv :: Env -> Set TyName
-ftvEnv env = Set.fromList (toListOf fv (Map.elems env))
+ftvEnv env = Set.fromList (error "(toListOf fv (Map.elems env))")
 
 substEnv :: Subst -> Env -> Env
 substEnv s = Map.map (substScheme s)
@@ -144,14 +137,14 @@ substScheme (Subst s) (Forall vars ty) = Forall vars (Subst.apply s' ty)
 
 generalize :: Ty -> Env -> Scheme
 generalize ty env = runIdentity $ do
-  let vars = Set.toList (ftvTy ty \\ ftvEnv env)
+  let vars = Set.toList (tyFtv ty \\ ftvEnv env)
   pure $ Forall vars ty
 
 instantiate :: Scheme -> Infer Ty
 instantiate (Forall params ty) = do
   freshTys <- mapM (const freshTy) params
   let subs = params `zip` freshTys
-  pure $ substs subs ty
+  pure $ (error "substs") subs ty
 
 addConstraint :: Ty -> Ty -> Infer ()
 addConstraint a b = tell (Set.singleton (a, b))
@@ -164,9 +157,8 @@ withBinding a (x, scheme) = local (Map.insert x scheme) a
 
 -- FIXME
 inferDecl :: Decl -> Infer Ty
-inferDecl (FunDecl _ ty bnd) = do
-  (_, body) <- unbind bnd
-  infer (Let ty body bnd)
+inferDecl (FunDecl name ty body) =
+  infer (Let ty body name body)
 
 infer :: Tree -> Infer Ty
 infer tree =
@@ -210,15 +202,16 @@ infer tree =
       ty <-> TySum tl tr
       pure ty
 
-    Case t inl inr -> do
-      ty <- infer t
-      tl <- infer (Let Nothing t inl)
-      tr <- infer (Let Nothing t inr)
+    -- FIXME
+    -- Case t inl inr -> do
+    --   ty <- infer t
+    --   tl <- infer (Let Nothing t inl)
+    --   tr <- infer (Let Nothing t inr)
 
-      tl <-> tr
-      ty <-> TySum tl tr
+    --   tl <-> tr
+    --   ty <-> TySum tl tr
 
-      pure tl
+    --   pure tl
 
     If cnd thn els -> do
       tc <- infer cnd
@@ -236,10 +229,9 @@ infer tree =
         Nothing     -> throwError (ValueNotFound name)
         Just scheme -> instantiate scheme
 
-    Abs ty bnd -> do
-      (x, body) <- unbind bnd
-      tp        <- fromMaybe freshTy (pure <$> ty)
-      tp'       <- infer body `withBinding` (x, forAll tp)
+    Abs ty x body -> do
+      tp  <- fromMaybe freshTy (pure <$> ty)
+      tp' <- infer body `withBinding` (x, forAll tp)
 
       pure (TyFun tp tp')
 
@@ -252,19 +244,17 @@ infer tree =
 
       pure ty
 
-    Let Nothing v bnd -> do
+    Let Nothing v x body -> do
       env       <- ask
       (tv, cv)  <- listen (infer v)
       case solve cv of
         Left err -> throwError err
         Right sub -> do
           let scheme = generalize (Subst.apply sub tv) (substEnv sub env)
-          (x, body) <- unbind bnd
           local (substEnv sub) (infer body) `withBinding` (x, scheme)
 
-    Let (Just tx) v bnd -> do
-      (x, body) <- unbind bnd
-      tv        <- infer v
+    Let (Just tx) v x body -> do
+      tv <- infer v
 
       tx <-> tv
 

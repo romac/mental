@@ -17,13 +17,12 @@ import           Text.Megaparsec
 import           Text.Megaparsec.Text
 import           Text.Megaparsec.Lexer (IndentOpt(..))
 
-import           Unbound.Generics.LocallyNameless
-
 import           Mental.Decl
+import           Mental.Lexer
+import           Mental.Name
+import           Mental.Primitive
 import           Mental.Tree
 import           Mental.Type
-import           Mental.Primitive
-import           Mental.Lexer
 
 moduleParser :: Parser Module
 moduleParser = between scn eof (nonIndented pModule)
@@ -65,8 +64,8 @@ pFunDecl = do
   sc
   equal
   body <- pTerm
-  let ident = textToName name
-  pure $ FunDecl ident ty (bind ident body)
+  let ident = mkName name
+  pure $ FunDecl ident ty body
   <?> "function declaration"
 
 pTyDecl :: Parser Decl
@@ -75,7 +74,7 @@ pTyDecl = do
   name <- identifier
   equal
   ty <- pTy
-  pure $ TyDecl name (bind name ty)
+  pure $ TyDecl name ty
   <?> "type alias"
 
 pTerm :: Parser Tree
@@ -134,7 +133,7 @@ pLet = do
   val <- pTerm
   reserved "in"
   body <- pTerm
-  pure $ Let tp val (bind name body)
+  pure $ Let tp val name body
   <?> "let"
 
 pLetRec :: Parser Tree
@@ -146,8 +145,8 @@ pLetRec = do
   val <- pTerm
   reserved "in"
   body <- pTerm
-  let inner = Abs ty (bind name val)
-  pure $ Let ty inner (bind name (PrimApp Fix body))
+  let inner = Abs ty name val
+  pure $ Let ty inner name (PrimApp Fix body)
   <?> "letrec"
 
 pFix :: Parser Tree
@@ -173,22 +172,22 @@ pSum' d = do
   pure $ Inl val ty
   <?> "sum"
 
-pCase :: Text -> Parser (Bind VarName Tree)
+pCase :: Text -> Parser (VarName, Tree)
 pCase d = do
   reserved d
   name <- identifier
   fatArrow
   body <- pTerm
-  pure $ bind name body
+  pure $ (name, body)
 
 pCaseOf :: Parser Tree
 pCaseOf = do
   reserved "case"
   val <- pTerm
   reserved "of"
-  inl:_ <- indentBlock (pure (IndentSome Nothing (pure) (pCase "inl")))
-  inr:_ <- indentBlock (pure (IndentSome Nothing (pure) (pCase "inr")))
-  pure $ Case val inl inr
+  [(inlName, inlBody)] <- indentBlock (pure (IndentSome Nothing (pure) (pCase "inl")))
+  [(inrName, inrBody)] <- indentBlock (pure (IndentSome Nothing (pure) (pCase "inr")))
+  pure $ Case val inlName inlBody inrName inrBody
   <?> "case"
 
 pAbs :: Parser Tree
@@ -198,7 +197,7 @@ pAbs = do
   tp <- optional (colon *> pTy)
   arrow
   body <- pTerm
-  pure $ Abs tp (bind name body)
+  pure $ Abs tp name body
   <?> "abs"
 
 pNat :: Parser Tree

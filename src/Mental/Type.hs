@@ -3,10 +3,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Mental.Type
-  ( TyName
-  , Ty(..)
-  , tyContains
-  , ftvTy
+  ( Ty(..)
+  , tyOccurs
+  , tyFtv
   ) where
 
 import           Protolude
@@ -14,12 +13,9 @@ import           Protolude
 import qualified Data.Set as Set
 import           Data.Typeable (Typeable)
 import           GHC.Generics  (Generic)
-import           Unbound.Generics.LocallyNameless
-import           Unbound.Generics.LocallyNameless.Internal.Fold
 
 import           Mental.Primitive
-
-type TyName = Name Ty
+import           Mental.Name
 
 data Ty
   = TyVar !TyName
@@ -28,20 +24,11 @@ data Ty
   | TyBool
   | TyPair !Ty !Ty
   | TySum !Ty !Ty
-  deriving (Eq, Ord, Show, Generic, Typeable)
+  deriving (Eq, Ord, Show, Read, Generic, Typeable)
 
-instance Alpha Ty
+tyFtv :: Ty -> Set TyName
+tyFtv ty = undefined
 
-instance Subst Ty Ty where
-  isvar (TyVar x) = Just (SubstName x)
-  isvar _         = Nothing
-
-instance Subst Ty Primitive where
-  isvar _ = Nothing
-
-ftvTy :: Ty -> Set TyName
-ftvTy ty = Set.fromList (toListOf fv ty)
-
-tyContains :: Ty -> TyName -> Bool
-tyContains ty n = Set.member n (ftvTy ty)
+tyOccurs :: TyName -> Ty -> Bool
+tyOccurs n ty = Set.member n (tyFtv ty)
 

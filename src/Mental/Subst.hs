@@ -6,12 +6,11 @@ import           Protolude hiding (empty)
 
 import qualified Data.Map.Strict as Map
 
-import           Unbound.Generics.LocallyNameless (substs)
-
+import           Mental.Name
 import           Mental.Type
 
 newtype Subst = Subst (Map TyName Ty)
-  deriving (Show)
+  deriving (Eq, Ord, Show, Read)
 
 instance Semigroup Subst where
   Subst s1 <> Subst s2 = Subst (Map.map (apply (Subst s1)) s2 `Map.union` s1)
@@ -21,7 +20,7 @@ instance Monoid Subst where
   mappend = (<>)
 
 apply :: Subst -> Ty -> Ty
-apply (Subst s) = substs (Map.toList s)
+apply (Subst s) = undefined
 
 empty :: Subst
 empty = Subst Map.empty

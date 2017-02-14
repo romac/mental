@@ -13,7 +13,7 @@ import           Text.Megaparsec
 import           Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
 
-import           Unbound.Generics.LocallyNameless (s2n, Name)
+import           Mental.Name
 
 reservedWords :: [Text]
 reservedWords =
@@ -62,11 +62,9 @@ text t = T.pack <$> string (T.unpack t)
 text' :: Text -> Parser ()
 text' = void . text
 
-identifier :: Parser (Name a)
-identifier = textToName <$> identifier'
-
-textToName :: Text -> Name a
-textToName = s2n . T.unpack
+-- FIXME
+identifier :: Parser VarName
+identifier = mkName <$> identifier'
 
 identifier' :: Parser Text
 identifier' = (lexeme . try) (p >>= check)

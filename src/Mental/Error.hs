@@ -1,6 +1,7 @@
 
 module Mental.Error where
 
+import Mental.Name
 import Mental.Tree
 import Mental.Type
 
@@ -11,5 +12,5 @@ data TypeError
 
 data EvalError
   = NoRuleApplies Tree
-  | VarNotInScope (Name Tree)
+  | VarNotInScope VarName
 

@@ -26,8 +26,8 @@ executables:
     dependencies:
       - base
       - haskeline
-      - mental
       - megaparsec
+      - mental
       - protolude
       - text
       - wl-pprint-text
@@ -36,14 +36,17 @@ library:
   source-dirs: src
   dependencies:
     - base >=4.7 && <5
+    - comonad
     - containers
+    - free
+    - haskeline
     - megaparsec
     - mtl
     - protolude
+    - recursion-schemes
     - semigroups
     - text
     - transformers
-    - unbound-generics
     - wl-pprint-text
 
 tests:
@@ -56,6 +59,6 @@ tests:
       - -with-rtsopts=-N
     dependencies:
       - base
-      - protolude
       - mental
+      - protolude
 

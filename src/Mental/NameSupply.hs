@@ -15,13 +15,8 @@ import           Protolude
 import           Control.Monad.Trans.Class
 import           Control.Monad.Writer.Strict (WriterT)
 
-import           Unbound.Generics.LocallyNameless (Fresh, FreshMT, runFreshMT)
-
-newtype NameSupplyT m a = NameSupplyT (StateT [[Char]] (FreshMT m) a)
-  deriving (Functor, Applicative, Monad, Fresh, MonadState [[Char]])
-
-instance MonadTrans NameSupplyT where
-  lift = NameSupplyT . lift . lift
+newtype NameSupplyT m a = NameSupplyT (StateT [[Char]] m a)
+  deriving (Functor, Applicative, Monad, MonadState [[Char]], MonadTrans)
 
 type NameSupply = NameSupplyT Identity
 
@@ -35,7 +30,7 @@ supply syms = syms <> go syms 1
     go s n = ((<> show n) <$> s) <> go s (n + 1)
 
 runNameSupplyT :: Monad m => NameSupplyT m a -> m a
-runNameSupplyT (NameSupplyT st) = runFreshMT (evalStateT st (supply alphabet))
+runNameSupplyT (NameSupplyT st) = evalStateT st (supply alphabet)
 
 runNameSupply :: NameSupply a -> a
 runNameSupply = runIdentity . runNameSupplyT

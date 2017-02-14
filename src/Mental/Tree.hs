@@ -5,9 +5,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Mental.Tree
-  ( VarName
-  , Tree(..)
-  , Name
+  ( Tree(..)
   , isValue
   , isNumericValue
   , pattern IsValue
@@ -19,12 +17,10 @@ import           Protolude
 
 import           Data.Typeable (Typeable)
 import           GHC.Generics  (Generic)
-import           Unbound.Generics.LocallyNameless
 
-import           Mental.Type
+import           Mental.Name
 import           Mental.Primitive
-
-type VarName = Name Tree
+import           Mental.Type
 
 data Tree
   = Tru
@@ -32,39 +28,24 @@ data Tree
   | Zero
   | If !Tree !Tree !Tree
   | Var !VarName
-  | Abs !(Maybe Ty) !(Bind VarName Tree)
+  | Abs !(Maybe Ty) !VarName !Tree
   | App !Tree !Tree
-  | Let !(Maybe Ty) !Tree !(Bind VarName Tree)
+  | Let !(Maybe Ty) !Tree !VarName !Tree -- FIXME
   | Pair !Tree !Tree
   | Inl !Tree !Ty
   | Inr !Tree !Ty
-  | Case !Tree !(Bind VarName Tree) !(Bind VarName Tree)
+  | Case !Tree !VarName !Tree !VarName !Tree -- FIXME
   | Prim !Primitive
-  deriving (Show, Generic, Typeable)
-
-instance Alpha Tree
-
-instance Subst Tree Tree where
-  isvar (Var x) = Just (SubstName x)
-  isvar _       = Nothing
-
-instance Subst Ty Tree where
-  isvar _ = Nothing
-
-instance Subst Tree Ty where
-  isvar _ = Nothing
-
-instance Subst Tree Primitive where
-  isvar _ = Nothing
+  deriving (Eq, Ord, Show, Read, Generic, Typeable)
 
 isValue :: Tree -> Bool
 isValue Tru         = True
 isValue Fals        = True
+isValue (Abs _ _ _) = True
+isValue (Prim _)    = True
 isValue (Pair a b)  = isValue a && isValue b
 isValue (Inl t _)   = isValue t
 isValue (Inr t _)   = isValue t
-isValue (Abs _ _)   = True
-isValue (Prim _)    = True
 isValue v           = isNumericValue v
 
 isNumericValue :: Tree -> Bool

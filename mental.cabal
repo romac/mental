@@ -29,14 +29,17 @@ library
   ghc-options: -Wall
   build-depends:
       base >=4.7 && <5
+    , comonad
     , containers
+    , free
+    , haskeline
     , megaparsec
     , mtl
     , protolude
+    , recursion-schemes
     , semigroups
     , text
     , transformers
-    , unbound-generics
     , wl-pprint-text
   exposed-modules:
       Mental.Decl
@@ -44,6 +47,7 @@ library
       Mental.Eval
       Mental.Infer
       Mental.Lexer
+      Mental.Name
       Mental.NameSupply
       Mental.Parser
       Mental.PrettyPrint
@@ -63,8 +67,8 @@ executable mentalist
   build-depends:
       base
     , haskeline
-    , mental
     , megaparsec
+    , mental
     , protolude
     , text
     , wl-pprint-text
@@ -82,6 +86,6 @@ test-suite mental-test
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
-    , protolude
     , mental
+    , protolude
   default-language: Haskell2010
