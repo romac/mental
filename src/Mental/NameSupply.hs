@@ -14,6 +14,7 @@ import           Protolude
 
 import           Control.Monad.Trans.Class
 import           Control.Monad.Writer.Strict (WriterT)
+import           Control.Monad.RWS.Strict (RWST)
 
 newtype NameSupplyT m a = NameSupplyT (StateT [[Char]] m a)
   deriving (Functor, Applicative, Monad, MonadState [[Char]], MonadTrans)
@@ -47,9 +48,12 @@ instance Monad m => MonadNameSupply (NameSupplyT m) where
 instance MonadNameSupply m => MonadNameSupply (ExceptT e m) where
   supplyName = lift supplyName
 
-instance MonadNameSupply m => MonadNameSupply (ReaderT e m) where
+instance MonadNameSupply m => MonadNameSupply (ReaderT r m) where
   supplyName = lift supplyName
 
-instance (Monoid e, MonadNameSupply m) => MonadNameSupply (WriterT e m) where
+instance (Monoid w, MonadNameSupply m) => MonadNameSupply (WriterT w m) where
+  supplyName = lift supplyName
+
+instance (Monoid w, MonadNameSupply m) => MonadNameSupply (RWST r w s m) where
   supplyName = lift supplyName
 

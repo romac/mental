@@ -21,7 +21,7 @@ import qualified Data.Set as Set
 import           Data.Set ((\\))
 import qualified Data.Map.Strict as Map
 
-import           Control.Monad.Writer.Strict hiding (First, (<>))
+import           Control.Monad.RWS.Strict hiding (First, (<>))
 
 import           Mental.Decl
 import           Mental.Error
@@ -45,13 +45,13 @@ type Env = Map VarName Scheme
 type Constraint = (Ty, Ty)
 
 newtype Infer a
-  = Infer (ReaderT
+  = Infer (RWST
             Env
+            (Set Constraint)
+            ()
             (ExceptT
               TypeError
-              (WriterT
-                (Set Constraint)
-                NameSupply))
+                NameSupply)
             a)
   deriving ( Functor
            , Applicative
@@ -68,14 +68,11 @@ data Scheme = Forall [TyName] Ty
 forAll :: Ty -> Scheme
 forAll = Forall []
 
--- forAll' :: Ty -> Scheme
--- forAll' ty = Forall (toListOf fv ty) ty
-
 runInfer :: Env -> Infer a -> InferResult (a, Set Constraint)
 runInfer env (Infer x) =
-  case runNameSupply (runWriterT (runExceptT (runReaderT x env))) of
-    (Left err, _) -> Left err
-    (Right a, cs) -> Right (a, cs)
+  case runNameSupply (runExceptT (evalRWST x env ())) of
+    Left err      -> Left err
+    Right (a, cs) -> Right (a, cs)
 
 #if DEBUG_INFER
 debugConstraints :: Monad m => Set Constraint -> m ()
@@ -126,7 +123,7 @@ freshTy :: MonadNameSupply m => m Ty
 freshTy = TyVar <$> freshTyName
 
 ftvEnv :: Env -> Set TyName
-ftvEnv env = Set.fromList (error "(toListOf fv (Map.elems env))")
+ftvEnv _ = Set.fromList (error "(toListOf fv (Map.elems env))")
 
 substEnv :: Subst -> Env -> Env
 substEnv s = Map.map (substScheme s)
