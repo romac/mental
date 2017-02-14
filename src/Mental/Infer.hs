@@ -26,7 +26,7 @@ import           Control.Monad.RWS.Strict hiding (First, (<>))
 import           Mental.Decl
 import           Mental.Error
 import           Mental.Name
-import           Mental.NameSupply
+import           Mental.Fresh
 import           Mental.Primitive
 import           Mental.Subst (Subst(..))
 import qualified Mental.Subst as Subst
@@ -51,12 +51,12 @@ newtype Infer a
             ()
             (ExceptT
               TypeError
-                NameSupply)
+                Fresh)
             a)
   deriving ( Functor
            , Applicative
            , Monad
-           , MonadNameSupply
+           , MonadFresh
            , MonadReader Env
            , MonadWriter (Set Constraint)
            , MonadError TypeError
@@ -70,7 +70,7 @@ forAll = Forall []
 
 runInfer :: Env -> Infer a -> InferResult (a, Set Constraint)
 runInfer env (Infer x) =
-  case runNameSupply (runExceptT (evalRWST x env ())) of
+  case runFresh (runExceptT (evalRWST x env ())) of
     Left err      -> Left err
     Right (a, cs) -> Right (a, cs)
 
@@ -116,11 +116,8 @@ inferModule (Module _ decls) = do
       -- declToEnv (TyDecl name ty)           = Map.singleton name (quantify ty)
       quantify ty = Forall (Set.toList (tyFtv ty)) ty
 
-freshTyName :: MonadNameSupply m => m TyName
-freshTyName = mkNameStr <$> supplyName
-
-freshTy :: MonadNameSupply m => m Ty
-freshTy = TyVar <$> freshTyName
+freshTy :: MonadFresh m => m Ty
+freshTy = TyVar <$> freshName
 
 ftvEnv :: Env -> Set TyName
 ftvEnv _ = Set.fromList (error "(toListOf fv (Map.elems env))")

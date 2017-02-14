@@ -45,10 +45,10 @@ library
       Mental.Decl
       Mental.Error
       Mental.Eval
+      Mental.Fresh
       Mental.Infer
       Mental.Lexer
       Mental.Name
-      Mental.NameSupply
       Mental.Parser
       Mental.PrettyPrint
       Mental.Primitive
