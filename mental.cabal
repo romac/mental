@@ -30,8 +30,6 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
-    , freer
-    , haskeline
     , megaparsec
     , mtl
     , protolude
@@ -64,10 +62,10 @@ executable mentalist
   ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
+    , haskeline
     , mental
     , megaparsec
     , protolude
-    , readline
     , text
     , wl-pprint-text
   other-modules:

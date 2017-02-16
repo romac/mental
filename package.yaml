@@ -25,10 +25,10 @@ executables:
       - -with-rtsopts=-N
     dependencies:
       - base
+      - haskeline
       - mental
       - megaparsec
       - protolude
-      - readline
       - text
       - wl-pprint-text
 
@@ -37,8 +37,6 @@ library:
   dependencies:
     - base >=4.7 && <5
     - containers
-    - freer
-    - haskeline
     - megaparsec
     - mtl
     - protolude
