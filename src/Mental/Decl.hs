@@ -2,12 +2,15 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Mental.Decl where
+module Mental.Decl
+  ( Module(..)
+  , Decl(..)
+  ) where
 
 import           Protolude
 
 import           Mental.Name
-import           Mental.Tree
+import           Mental.Tree.Untyped
 import           Mental.Type
 
 data Module
@@ -18,7 +21,7 @@ data Module
   deriving (Eq, Ord, Show, Read, Generic, Typeable)
 
 data Decl
-  = FunDecl !VarName !(Maybe Ty) !Tree
+  = FunDecl !VarName !(Maybe Ty) !UntypedTree
   | TyDecl  !TyName !Ty
   deriving (Eq, Ord, Show, Read, Generic, Typeable)
 

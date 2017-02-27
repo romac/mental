@@ -7,11 +7,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Mental.Infer
-  ( unify
-  , inferTree
-  , inferModule
-  ) where
+module Mental.Infer where
 
 #define DEBUG_INFER 0
 
@@ -22,15 +18,21 @@ import           Data.Set ((\\))
 import qualified Data.Map.Strict as Map
 
 import           Control.Monad.RWS.Strict hiding (First, (<>))
+import           Control.Comonad.Cofree (Cofree(..))
+import           Text.Megaparsec (SourcePos)
 
+import           Mental.Annotate
 import           Mental.Decl
 import           Mental.Error
+import           Mental.Memoize
 import           Mental.Name
 import           Mental.Fresh
 import           Mental.Primitive
-import           Mental.Subst (Subst(..))
+import           Mental.Subst
 import qualified Mental.Subst as Subst
 import           Mental.Tree
+import           Mental.Tree.Untyped
+import           Mental.Tree.Typed
 import           Mental.Type
 import           Mental.Unify
 
@@ -38,41 +40,34 @@ import           Mental.Unify
 import           Mental.PrettyPrint (prettyType)
 #endif
 
-type InferResult = Either TypeError
+type InferResult = Either TyError
 
 type Env = Map VarName Scheme
 
 type Constraint = (Ty, Ty)
 
+type Memo = Map UntypedTree Ty
+
 newtype Infer a
-  = Infer (RWST
-            Env
-            (Set Constraint)
-            ()
-            (ExceptT
-              TypeError
-                Fresh)
-            a)
+  = Infer
+  { runInfer :: RWST
+                  Env
+                  (Set Constraint)
+                  Memo
+                  (ExceptT
+                    TyError
+                      Fresh)
+                  a
+  }
   deriving ( Functor
            , Applicative
            , Monad
            , MonadFresh
            , MonadReader Env
            , MonadWriter (Set Constraint)
-           , MonadError TypeError
+           , MonadState Memo
+           , MonadError TyError
            )
-
-data Scheme = Forall [TyName] Ty
-  deriving (Eq, Ord, Show, Read, Generic, Typeable)
-
-forAll :: Ty -> Scheme
-forAll = Forall []
-
-runInfer :: Env -> Infer a -> InferResult (a, Set Constraint)
-runInfer env (Infer x) =
-  case runFresh (runExceptT (evalRWST x env ())) of
-    Left err      -> Left err
-    Right (a, cs) -> Right (a, cs)
 
 #if DEBUG_INFER
 debugConstraints :: Monad m => Set Constraint -> m ()
@@ -98,47 +93,32 @@ debugSubst (Subst sub) = do
         traceM ("# " <> l <> " / " <> r)
 #endif
 
-inferTree :: Tree -> InferResult Ty
-inferTree tree = do
-  (ty, cs) <- runInfer Map.empty (infer tree)
-  sub      <- solve cs
-  pure (Subst.apply sub ty)
+typeModule :: Module -> InferResult ()
+typeModule = error "typeModule"
 
--- FIXME
-inferModule :: Module -> InferResult ()
-inferModule (Module _ decls) = do
-  let env = mconcat (declToEnv <$> decls)
-  ((), cs) <- runInfer env (forM_ decls inferDecl)
-  void (solve cs)
-    where
-      declToEnv (FunDecl name (Just ty) _) = Map.singleton name (quantify ty)
-      declToEnv (FunDecl name Nothing _)   = Map.singleton name (Forall [mkName "a"] (TyVar (mkName "a")))
-      -- declToEnv (TyDecl name ty)           = Map.singleton name (quantify ty)
-      quantify ty = Forall (Set.toList (tyFtv ty)) ty
+-- inferModule (Module _ decls) = do
+--   let env = mconcat (declToEnv <$> decls)
+--   ((), cs) <- runInfer env (forM_ decls inferDecl)
+--   void (solve cs)
+--     where
+--       declToEnv (FunDecl name (Just ty) _) = Map.singleton name (quantify ty)
+--       declToEnv (FunDecl name Nothing _)   = Map.singleton name (Forall [mkName "a"] (TyVar (mkName "a")))
+--       declToEnv (TyDecl name ty)           = Map.singleton name (quantify ty)
+--       quantify ty = Forall (Set.toList (ftv ty)) ty
 
 freshTy :: MonadFresh m => m Ty
-freshTy = TyVar <$> freshName
-
-ftvEnv :: Env -> Set TyName
-ftvEnv _ = Set.fromList (error "(toListOf fv (Map.elems env))")
-
-substEnv :: Subst -> Env -> Env
-substEnv s = Map.map (substScheme s)
-
-substScheme :: Subst -> Scheme -> Scheme
-substScheme (Subst s) (Forall vars ty) = Forall vars (Subst.apply s' ty)
-  where s' = Subst (foldr Map.delete s vars)
+freshTy = tyVar <$> freshName
 
 generalize :: Ty -> Env -> Scheme
-generalize ty env = runIdentity $ do
-  let vars = Set.toList (tyFtv ty \\ ftvEnv env)
-  pure $ Forall vars ty
+generalize ty env =
+  let vars = Set.toList (ftv ty \\ ftv env)
+   in Forall vars ty
 
 instantiate :: Scheme -> Infer Ty
 instantiate (Forall params ty) = do
   freshTys <- mapM (const freshTy) params
-  let subs = params `zip` freshTys
-  pure $ (error "substs") subs ty
+  let sub = Subst.fromList (params `zip` freshTys)
+  pure $ subst sub ty
 
 addConstraint :: Ty -> Ty -> Infer ()
 addConstraint a b = tell (Set.singleton (a, b))
@@ -151,106 +131,93 @@ withBinding a (x, scheme) = local (Map.insert x scheme) a
 
 -- FIXME
 inferDecl :: Decl -> Infer Ty
-inferDecl (FunDecl name ty body) =
-  infer (Let ty body name body)
+inferDecl = error "inferDecl"
+-- inferDecl (FunDecl name ty body) =
+--   infer (Let ty body name body)
 
-infer :: Tree -> Infer Ty
-infer tree =
-  case tree of
-    Tru  -> pure TyBool
-    Fals -> pure TyBool
-    Zero -> pure TyNat
+typeTree :: UntypedTree -> InferResult TypedTree
+typeTree tree = do
+  (tyTree, cs) <- annotateTree tree
+  sub          <- solve cs
+  pure (subst sub <$> tyTree)
 
-    Prim Succ   -> pure $ TyFun TyNat TyNat
-    Prim Pred   -> pure $ TyFun TyNat TyNat
-    Prim IsZero -> pure $ TyFun TyNat TyBool
+annotateTree :: UntypedTree -> InferResult (TypedTree, Set Constraint)
+annotateTree tree = do
+  let infer' = annotateM infer tree
+      except = evalRWST (runInfer infer') Map.empty Map.empty
+      fresh  = runExceptT except
+   in runFresh fresh
 
-    Prim First -> do
-      a <- freshTy
-      b <- freshTy
-      pure (TyFun (TyPair a b) a)
+infer :: UntypedTree -> Infer Ty
+infer = memoizeM infer'
+  where
+    infer' (_ :< tree) =
+      case tree of
+        Tru  -> pure tyBool
+        Fals -> pure tyBool
 
-    Prim Second -> do
-      a <- freshTy
-      b <- freshTy
-      pure (TyFun (TyPair a b) b)
+        Prim PFirst -> do
+          a <- freshTy
+          b <- freshTy
+          pure (tyFun (tyPair a b) a)
 
-    Prim Fix -> do
-      a <- freshTy
-      pure (TyFun (TyFun a a) a)
+        Prim PSecond -> do
+          a <- freshTy
+          b <- freshTy
+          pure (tyFun (tyPair a b) b)
 
-    Pair a b ->
-      TyPair <$> infer a <*> infer b
+        Prim PFix -> do
+          a <- freshTy
+          pure (tyFun (tyFun a a) a)
 
-    Inl t ty -> do
-      tr <- freshTy
-      tl <- infer t
+        Pair a b ->
+          tyPair <$> infer a <*> infer b
 
-      ty <-> TySum tl tr
-      pure ty
+        If cnd thn els -> do
+          tc <- infer cnd
+          tt <- infer thn
+          te <- infer els
 
-    Inr t ty -> do
-      tl <- freshTy
-      tr <- infer t
+          tc <-> tyBool
+          tt <-> te
 
-      ty <-> TySum tl tr
-      pure ty
+          pure tt
 
-    -- FIXME
-    -- Case t inl inr -> do
-    --   ty <- infer t
-    --   tl <- infer (Let Nothing t inl)
-    --   tr <- infer (Let Nothing t inr)
+        IntLit _ ->
+          pure tyNat
 
-    --   tl <-> tr
-    --   ty <-> TySum tl tr
+        Var name -> do
+          env <- ask
+          case Map.lookup name env of
+            Nothing     -> throwError (ValueNotFound name)
+            Just scheme -> instantiate scheme
 
-    --   pure tl
+        Abs ty (x, body) -> do
+          tp  <- fromMaybe freshTy (pure <$> ty)
+          tp' <- infer body `withBinding` (x, forAll tp)
 
-    If cnd thn els -> do
-      tc <- infer cnd
-      tt <- infer thn
-      te <- infer els
+          pure (tyFun tp tp')
 
-      tc <-> TyBool
-      tt <-> te
+        App f x -> do
+          tf <- infer f
+          tx <- infer x
+          ty <- freshTy
 
-      pure tt
+          tf <-> tyFun tx ty
 
-    Var name -> do
-      env <- ask
-      case Map.lookup name env of
-        Nothing     -> throwError (ValueNotFound name)
-        Just scheme -> instantiate scheme
+          pure ty
 
-    Abs ty x body -> do
-      tp  <- fromMaybe freshTy (pure <$> ty)
-      tp' <- infer body `withBinding` (x, forAll tp)
+        Let x Nothing v body -> do
+          env       <- ask
+          (tv, cv)  <- listen (infer v)
+          case solve cv of
+            Left err -> throwError err
+            Right sub -> do
+              let scheme = generalize (subst sub tv) (subst sub env)
+              local (subst sub) (infer body) `withBinding` (x, scheme)
 
-      pure (TyFun tp tp')
-
-    App f x -> do
-      tf <- infer f
-      tx <- infer x
-      ty <- freshTy
-
-      tf <-> TyFun tx ty
-
-      pure ty
-
-    Let Nothing v x body -> do
-      env       <- ask
-      (tv, cv)  <- listen (infer v)
-      case solve cv of
-        Left err -> throwError err
-        Right sub -> do
-          let scheme = generalize (Subst.apply sub tv) (substEnv sub env)
-          local (substEnv sub) (infer body) `withBinding` (x, scheme)
-
-    Let (Just tx) v x body -> do
-      tv <- infer v
-
-      tx <-> tv
-
-      infer body `withBinding` (x, forAll tx)
+        Let x (Just tx) v body -> do
+          tv <- infer v
+          tx <-> tv
+          infer body `withBinding` (x, forAll tx)
 

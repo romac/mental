@@ -1,33 +1,63 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Mental.Subst where
 
 import           Protolude hiding (empty)
 
-import qualified Data.Map.Strict as Map
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import           Data.Set ((\\))
+
+import           Data.Functor.Foldable (cata, para, embed, project)
+import           Control.Comonad.Trans.Cofree (CofreeF(..))
 
 import           Mental.Name
 import           Mental.Type
+import           Mental.Tree
 
-newtype Subst = Subst (Map TyName Ty)
-  deriving (Eq, Ord, Show, Read)
+newtype Substitution = Substitution (Map TyName Ty)
+  deriving (Eq, Ord, Show, Read, Semigroup, Monoid)
 
-instance Semigroup Subst where
-  Subst s1 <> Subst s2 = Subst (Map.map (apply (Subst s1)) s2 `Map.union` s1)
+empty :: Substitution
+empty = mempty
 
-instance Monoid Subst where
-  mempty = empty
-  mappend = (<>)
+singleton :: TyName -> Ty -> Substitution
+singleton k v = Substitution (Map.singleton k v)
 
-apply :: Subst -> Ty -> Ty
-apply (Subst s) = undefined
+fromList :: [(TyName, Ty)] -> Substitution
+fromList = Substitution . Map.fromList
 
-empty :: Subst
-empty = Subst Map.empty
+biApply :: (Subst e, Bifunctor f) => Substitution -> f e e -> f e e
+biApply s = bimap (subst s) (subst s)
 
-singleton :: TyName -> Ty -> Subst
-singleton k v = Subst (Map.singleton k v)
+class Subst t where
+  ftv   :: t -> Set TyName
+  subst :: Substitution -> t -> t
 
-onPair :: Subst -> (Ty, Ty) -> (Ty, Ty)
-onPair s = bimap (apply s) (apply s)
+hasFtv :: Subst t => TyName -> t -> Bool
+hasFtv n e = Set.member n (ftv e)
+
+instance Subst Ty where
+  ftv = tyFtv
+
+  subst (Substitution s) = cata alg
+    where
+      alg ty@(TyVar n) = Map.findWithDefault (embed ty) n s
+      alg ty           = embed ty
+
+instance Subst Scheme where
+  ftv (Forall vars ty) = ftv ty \\ Set.fromList vars
+
+  subst (Substitution s) (Forall vars ty) =
+    Forall vars (subst s' ty)
+      where s' = Substitution (foldr Map.delete s vars)
+
+instance Subst v => Subst (Map k v) where
+  ftv m = foldMap (ftv . snd) (Map.toList m)
+  subst = Map.map . subst
 

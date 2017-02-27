@@ -9,7 +9,10 @@ github: romac/mental
 extra-source-files:
   - README.md
 
-ghc-options: -Wall
+ghc-options:
+  - -Wall
+  # - -fno-warn-warnings-deprecations
+  # - -fno-warn-unused-imports
 default-extensions:
   - NoImplicitPrelude
   - OverloadedStrings
@@ -25,6 +28,7 @@ executables:
       - -with-rtsopts=-N
     dependencies:
       - base
+      - free
       - haskeline
       - megaparsec
       - mental
@@ -38,6 +42,7 @@ library:
     - base >=4.7 && <5
     - comonad
     - containers
+    - deriving-compat
     - free
     - haskeline
     - megaparsec

@@ -15,40 +15,41 @@ module Mental.Unify
 
 #define DEBUG_UNIFY 0
 
-import           Protolude hiding (Constraint, TypeError)
+import           Protolude hiding (Constraint)
 
 import qualified Data.Set as Set
+import           Data.Functor.Foldable (project)
 
-import qualified Mental.Subst as Subst
-import           Mental.Subst (Subst(..))
-import           Mental.Error (TypeError(..))
+import           Mental.Error (TyError(..))
+import           Mental.Subst
 import           Mental.Type
+import qualified Mental.Subst as Subst
 
 type Constraint = (Ty, Ty)
 
-type UnifyState = (Subst, [Constraint])
+type UnifyState = (Substitution, [Constraint])
 
-type UnifyResult = Either TypeError
+type UnifyResult = Either TyError
 
 newtype Unify a
   = Unify (StateT
              UnifyState
-             (Except TypeError)
+             (Except TyError)
              a)
              deriving ( Functor
                       , Applicative
                       , Monad
                       , MonadState UnifyState
-                      , MonadError TypeError
+                      , MonadError TyError
                       )
 
 runUnify :: UnifyState -> Unify a -> UnifyResult a
 runUnify st (Unify a) = runExcept (evalStateT a st)
 
-solve :: Set Constraint -> UnifyResult Subst
+solve :: Set Constraint -> UnifyResult Substitution
 solve cs = runUnify (Subst.empty, Set.toList cs) unify
 
-unify :: Unify Subst
+unify :: Unify Substitution
 unify = do
   (sub, css) <- get
   case css of
@@ -62,41 +63,39 @@ unify = do
 #endif
 
       (sub', cs') <- unify' (s, t)
-      put (sub' <> sub, cs' <> (Subst.onPair sub' <$> cs))
+      put (sub' <> sub, cs' <> (Subst.biApply sub' <$> cs))
       unify
 
 unify' :: Constraint -> Unify UnifyState
-unify' c = case c of
-  (s, t) | s == t ->
-    pure (mempty, mempty)
+unify' (s, t) =
+  case (project s, project t) of
+    (s', t') | s' == t' ->
+      pure (mempty, mempty)
 
-  (s@(TyVar n), t) | n `tyOccurs` t ->
-    throwError (InfiniteTypeError s t)
+    (TyVar n, _) | n `tyOccurs` t ->
+      throwError (InfiniteTypeError s t)
 
-  (s, t@(TyVar n)) | n `tyOccurs` t ->
-    throwError (InfiniteTypeError t s)
+    (_, TyVar n) | n `tyOccurs` s ->
+      throwError (InfiniteTypeError t s)
 
-  (s, TyVar n) ->
-    pure (Subst.singleton n s, mempty)
+    (_, TyVar n) ->
+      pure (Subst.singleton n s, mempty)
 
-  (TyVar n, t) ->
-    pure (Subst.singleton n t, mempty)
+    (TyVar n, _) ->
+      pure (Subst.singleton n t, mempty)
 
-  (TyFun a b, TyFun a' b') ->
-    unifyPair (a, a') (b, b')
+    (TyFun a b, TyFun a' b') ->
+      unifyPair (a, a') (b, b')
 
-  (TyPair a b, TyPair a' b') ->
-    unifyPair (a, a') (b, b')
+    (TyPair a b, TyPair a' b') ->
+      unifyPair (a, a') (b, b')
 
-  (TySum a b, TySum a' b') ->
-    unifyPair (a, a') (b, b')
-
-  (s, t) ->
-    throwError (UnificationError s t)
+    _ ->
+      throwError (UnificationError s t)
 
   where
     unifyPair (a, a') (b, b') = do
       (s1, c1) <- unify' (a, a')
-      (s2, c2) <- unify' (Subst.onPair s1 (b, b'))
+      (s2, c2) <- unify' (Subst.biApply s1 (b, b'))
       pure (s1 <> s2, c1 <> c2)
 

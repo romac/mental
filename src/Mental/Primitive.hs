@@ -9,11 +9,8 @@ import           Data.Typeable (Typeable)
 import           GHC.Generics  (Generic)
 
 data Primitive
-  = Succ
-  | Pred
-  | IsZero
-  | First
-  | Second
-  | Fix
+  = PFirst
+  | PSecond
+  | PFix
   deriving (Eq, Ord, Show, Read, Enum, Generic, Typeable)
 

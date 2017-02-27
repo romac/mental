@@ -1,16 +1,23 @@
 
-module Mental.Error where
+module Mental.Error
+  ( TyError(..)
+  , EvalError(..)
+  ) where
 
-import Mental.Name
-import Mental.Tree
-import Mental.Type
+import           Protolude
 
-data TypeError
-  = ValueNotFound VarName
-  | UnificationError Ty Ty
+import           Mental.Name
+import           Mental.Tree
+import           Mental.Type
+
+data TyError
+  = ValueNotFound     VarName
+  | UnificationError  Ty Ty
   | InfiniteTypeError Ty Ty
+  deriving (Eq, Ord, Show, Read)
 
 data EvalError
   = NoRuleApplies Tree
   | VarNotInScope VarName
+  deriving (Eq, Ord, Show, Read)
 

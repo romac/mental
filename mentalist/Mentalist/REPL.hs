@@ -7,17 +7,18 @@ import           Protolude
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
 
+import           Control.Comonad.Cofree       (Cofree(..))
 import           Text.Megaparsec              (parse, parseErrorPretty)
 import           Text.Megaparsec.Text         (Parser)
 import           Text.PrettyPrint.Leijen.Text (Doc)
 import           System.Console.Haskeline
 
 import           Mental.Decl                  (Module)
-import           Mental.Tree                  (Tree)
+import           Mental.Tree.Untyped          (UntypedTree)
 import           Mental.Parser                (termParser, moduleParser)
-import           Mental.PrettyPrint           (prettyModule, prettyTree, prettyTy, prettyEvalError, prettyTypeError)
-import           Mental.Eval                  (traceEvalTree)
-import           Mental.Infer                 (inferTree, inferModule)
+import           Mental.PrettyPrint           (ppTree, ppAnnTree, ppTy, ppModule, ppEvalError, ppTyError)
+import           Mental.Eval                  (traceEvalUntypedTree)
+import           Mental.Infer                 (typeTree, typeModule)
 
 import           Mentalist.REPL.Cmd           (Cmd( ..), parseCmd)
 
@@ -61,7 +62,8 @@ showTypeCmd code = do
 loadFileCmd :: FilePath -> REPL ()
 loadFileCmd path = do
   code <- liftIO $ T.readFile path
-  parsePrintEvalModule path code
+  outputTextLn code
+  -- parsePrintEvalModule path code
 
 parseCode :: Parser a -> FilePath -> Text -> REPL (Maybe a)
 parseCode withParser file code =
@@ -73,30 +75,30 @@ parseCode withParser file code =
     Right res ->
       pure (Just res)
 
-evalTree :: Tree -> REPL ()
+evalTree :: UntypedTree -> REPL ()
 evalTree tree =
-  case traceEvalTree tree of
-    Left err    -> outputPretty (prettyEvalError err) >> outputNewline
-    Right steps -> forM_ steps (outputPretty . prettyTree)
+  case traceEvalUntypedTree tree of
+    Left err    -> outputPretty (ppEvalError err) >> outputNewline
+    Right steps -> forM_ steps (outputPretty . ppTree)
 
-runInferTree :: Tree -> REPL ()
+runInferTree :: UntypedTree -> REPL ()
 runInferTree tree =
-  case inferTree tree of
-    Left err -> outputPretty (prettyTypeError err) >> outputNewline
-    Right ty -> outputPretty (prettyTy ty)
+  case typeTree tree of
+    Left err        -> outputPretty (ppTyError err) >> outputNewline
+    Right (ty :< _) -> outputPretty (ppTy ty)
 
-runInferModule :: Module -> REPL () -> REPL ()
-runInferModule mod' onSuccess =
-  case inferModule mod' of
-    Left err -> outputPretty (prettyTypeError err) >> outputNewline
-    Right () -> onSuccess
+-- runInferModule :: Module -> REPL () -> REPL ()
+-- runInferModule mod' onSuccess =
+--   case typeModule mod' of
+--     Left err -> outputPretty (ppTyError err) >> outputNewline
+--     Right () -> onSuccess
 
 parsePrintEvalTerm :: FilePath -> Text -> REPL ()
 parsePrintEvalTerm file code = do
   maybeTree <- parseCode termParser file code
   forM_ maybeTree $ \tree -> do
     header "Parsed"
-    outputPretty (prettyTree tree)
+    outputPretty (ppAnnTree tree)
 
     header "Type"
     runInferTree tree
@@ -106,14 +108,14 @@ parsePrintEvalTerm file code = do
 
     outputNewline
 
-parsePrintEvalModule :: FilePath -> Text -> REPL ()
-parsePrintEvalModule file code = do
-  maybeMod <- parseCode moduleParser file code
-  forM_ maybeMod $ \mod' -> do
-    header "Parsed"
-    outputPretty (prettyModule mod')
+-- parsePrintEvalModule :: FilePath -> Text -> REPL ()
+-- parsePrintEvalModule file code = do
+--   maybeMod <- parseCode moduleParser file code
+--   forM_ maybeMod $ \mod' -> do
+--     header "Parsed"
+--     outputPretty (ppModule mod')
 
-    runInferModule mod' (header "Typechecks!")
+--     runInferModule mod' (header "Typechecks!")
 
 runREPL :: IO ()
 runREPL = runInputT defaultSettings repl
