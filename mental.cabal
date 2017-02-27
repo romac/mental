@@ -71,6 +71,7 @@ executable mentalist
   ghc-options: -Wall -fno-warn-warnings-deprecations -fno-warn-unused-imports -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
+    , free
     , haskeline
     , megaparsec
     , mental

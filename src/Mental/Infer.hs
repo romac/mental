@@ -19,7 +19,6 @@ import qualified Data.Map.Strict as Map
 
 import           Control.Monad.RWS.Strict hiding (First, (<>))
 import           Control.Comonad.Cofree (Cofree(..))
-import           Text.Megaparsec (SourcePos)
 
 import           Mental.Annotate
 import           Mental.Decl

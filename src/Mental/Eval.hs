@@ -14,15 +14,12 @@ module Mental.Eval
 
 import           Protolude hiding (head, for)
 
-import           Control.Comonad.Cofree (Cofree(..))
-import           Data.Functor.Foldable (project, embed, para)
+
+import           Data.Functor.Foldable (project, embed)
 import           Data.List.NonEmpty
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
-import           Mental.Annotate
 import           Mental.Error
-import           Mental.Memoize
 import           Mental.Name
 import           Mental.Primitive
 import           Mental.Tree

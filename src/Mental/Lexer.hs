@@ -80,4 +80,3 @@ nonIndented = L.nonIndented scn
 indentBlock :: Parser (L.IndentOpt Parser a b) -> Parser a
 indentBlock = L.indentBlock scn
 
-

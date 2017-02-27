@@ -29,8 +29,6 @@ import           Data.Deriving
 
 import qualified Control.Comonad.Cofree as Cofree
 import           Control.Comonad.Cofree (Cofree)
-import           Control.Comonad.Trans.Cofree (CofreeF(..))
-import qualified Control.Comonad.Trans.Cofree as CofreeF
 import           Data.Functor.Foldable (cata, embed, Base, Corecursive, Fix, project)
 import qualified Data.Set as Set
 import           Data.Set ((\\))

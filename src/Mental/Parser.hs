@@ -11,7 +11,6 @@ import           Control.Comonad.Cofree (Cofree(..))
 
 import           Text.Megaparsec
 import           Text.Megaparsec.Text
-import           Text.Megaparsec.Lexer (IndentOpt(..))
 
 import           Mental.Decl
 import           Mental.Lexer

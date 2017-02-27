@@ -26,7 +26,6 @@ import           Mental.Error
 import           Mental.Name
 import           Mental.Primitive
 import           Mental.Tree
-import           Mental.Tree.Untyped
 import           Mental.Tree.Typed
 import           Mental.Type
 

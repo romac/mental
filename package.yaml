@@ -11,8 +11,8 @@ extra-source-files:
 
 ghc-options:
   - -Wall
-  # - -fno-warn-warnings-deprecations
-  # - -fno-warn-unused-imports
+  - -fno-warn-warnings-deprecations
+  - -fno-warn-unused-imports
 default-extensions:
   - NoImplicitPrelude
   - OverloadedStrings

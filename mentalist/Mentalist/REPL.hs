@@ -13,7 +13,7 @@ import           Text.Megaparsec.Text         (Parser)
 import           Text.PrettyPrint.Leijen.Text (Doc)
 import           System.Console.Haskeline
 
-import           Mental.Decl                  (Module)
+-- import           Mental.Decl                  (Module)
 import           Mental.Tree.Untyped          (UntypedTree)
 import           Mental.Parser                (termParser, moduleParser)
 import           Mental.PrettyPrint           (ppTree, ppAnnTree, ppTy, ppModule, ppEvalError, ppTyError)
