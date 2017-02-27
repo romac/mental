@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ViewPatterns #-}
 
--- FIXME: Figure out a way to make `eval` and `evalPrim` prettier
+-- FIXME: Evaluation of primitives is a huge hack
 
 module Mental.Eval
   ( evalUntypedTree
@@ -113,9 +113,17 @@ eval tree =
       -- local (Map.insert x v) (eval body)
       pure $ subst x v body
 
-   -- FIXME: Huge hack
+    -- FIXME: Huge hack
     App (project -> App (project -> Prim prim) a) b | isValue a && isValue b ->
       evalBinaryPrim prim a b
+
+    App (project -> App (project -> Prim prim) a) b | isValue a -> do
+      b' <- eval b
+      pure $ mkApp (mkApp (mkPrim prim) a) b'
+
+    App (project -> App (project -> Prim prim) a) b -> do
+      a' <- eval a
+      pure $ mkApp (mkApp (mkPrim prim) a') b
 
     App (project -> Prim prim) v | isValue v ->
       evalUnaryPrim prim v
