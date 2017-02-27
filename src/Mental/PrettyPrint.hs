@@ -91,6 +91,7 @@ ppTy = para ppTy'
 ppTy' :: TyF (Ty, Doc) -> Doc
 ppTy' TyInt     = "Int"
 ppTy' TyBool    = "Bool"
+ppTy' TyUnit    = "()"
 ppTy' (TyVar n) = ppName n
 
 ppTy' (TyFun (project -> TyFun _ _, a) (_, b)) =
@@ -114,6 +115,7 @@ ppAnnTree = cata ppTree'
 ppTree' :: CofreeF TreeF a Doc -> Doc
 ppTree' (_ :< Tru)            = "True"
 ppTree' (_ :< Fals)           = "False"
+ppTree' (_ :< Unit)           = "()"
 ppTree' (_ :< Var n)          = ppName n
 ppTree' (_ :< IntLit n)       = text (show n)
 ppTree' (_ :< Prim prim)      = ppPrim prim

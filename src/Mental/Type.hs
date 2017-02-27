@@ -14,7 +14,10 @@ module Mental.Type
   , tyVar
   , tyInt
   , tyBool
+  , tyUnit
   , tyFun
+  , tyFun1
+  , tyFun2
   , tyPair
   , tyOccurs
   , tyFtv
@@ -37,6 +40,7 @@ data TyF a
   | TyInt
   | TyBool
   | TyPair !a !a
+  | TyUnit
   deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Generic, Typeable)
 
 $(deriveEq1   ''TyF)
@@ -61,8 +65,17 @@ tyInt = embed TyInt
 tyBool :: Ty
 tyBool = embed TyBool
 
+tyUnit :: Ty
+tyUnit = embed TyUnit
+
 tyFun :: Ty -> Ty -> Ty
 tyFun a b = embed (TyFun a b)
+
+tyFun1 :: Ty -> Ty -> Ty
+tyFun1 = tyFun
+
+tyFun2 :: Ty -> Ty -> Ty -> Ty
+tyFun2 a b c = tyFun a (tyFun b c)
 
 tyPair :: Ty -> Ty -> Ty
 tyPair a b = embed (TyPair a b)

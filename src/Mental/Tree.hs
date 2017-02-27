@@ -50,6 +50,7 @@ data TreeF a
   | Let !VarName !(Maybe Ty) a a
   | Pair a a
   | Prim !Primitive
+  | Unit
   deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Generic, Typeable)
 
 $(deriveEq1   ''TreeF)
@@ -90,6 +91,9 @@ mkIntLit = embed . IntLit
 
 mkPair :: (Base t ~ TreeF, Corecursive t) => t -> t -> t
 mkPair a b = embed (Pair a b)
+
+mkUnit :: (Base t ~ TreeF, Corecursive t) => t
+mkUnit = embed Unit
 
 mkPrim :: (Base t ~ TreeF, Corecursive t) => Primitive -> t
 mkPrim = embed . Prim

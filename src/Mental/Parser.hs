@@ -98,6 +98,7 @@ pSimpleTerm =
     <|> try pPrim
     <|> try pLetRec
     <|> try pLet
+    <|> try pUnit
     <|> try pPair
     <|> try (parens pTerm)
     <?> "term"
@@ -169,6 +170,10 @@ pLetRec = do
   pure $ pos :< Let name ty inner (pos :< App (pos :< Prim PFix) body)
   <?> "letrec"
 
+pUnit :: Parser UntypedTree
+pUnit = withPos' (unit *> pure Unit <?> "unit")
+  where unit = symbol "(" >> symbol ")"
+
 pPair :: Parser UntypedTree
 pPair = parens p <?> "pair"
   where
@@ -205,8 +210,11 @@ pSimpleTy = try pPairTy <|> pBaseTy
 pBaseTy :: Parser Ty
 pBaseTy =  reserved "Int"  *> pure tyInt
        <|> reserved "Bool" *> pure tyBool
+       <|> unit            *> pure tyUnit
        <|> (tyVar <$> identifier)
        <|> parens pTy
+  where
+    unit = symbol "(" >> symbol ")"
 
 pPairTy :: Parser Ty
 pPairTy = parens $ do

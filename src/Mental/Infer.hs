@@ -147,54 +147,20 @@ annotateTree tree = do
       fresh  = runExceptT except
    in runFresh fresh
 
-intBinaryPrimTy :: Ty
-intBinaryPrimTy = tyFun tyInt (tyFun tyInt tyInt)
-
-intUnaryPrimTy :: Ty
-intUnaryPrimTy = tyFun tyInt tyInt
-
 infer :: UntypedTree -> Infer Ty
 infer = memoizeM infer'
   where
     infer' (_ :< tree) =
       case tree of
-        Tru  -> pure tyBool
-        Fals -> pure tyBool
 
-        Prim PIntPlus ->
-          pure intBinaryPrimTy
+        Unit ->
+          pure tyUnit
 
-        Prim PIntMinus ->
-          pure intBinaryPrimTy
+        Tru  ->
+          pure tyBool
 
-        Prim PIntMul ->
-          pure intBinaryPrimTy
-
-        Prim PIntDiv ->
-          pure intBinaryPrimTy
-
-        Prim PIntEq ->
-          pure intBinaryPrimTy
-
-        Prim PIntLess ->
-          pure intBinaryPrimTy
-
-        Prim PIntNeg ->
-          pure intUnaryPrimTy
-
-        Prim PFirst -> do
-          a <- freshTy
-          b <- freshTy
-          pure (tyFun (tyPair a b) a)
-
-        Prim PSecond -> do
-          a <- freshTy
-          b <- freshTy
-          pure (tyFun (tyPair a b) b)
-
-        Prim PFix -> do
-          a <- freshTy
-          pure (tyFun (tyFun a a) a)
+        Fals ->
+          pure tyBool
 
         Pair a b ->
           tyPair <$> infer a <*> infer b
@@ -246,4 +212,39 @@ infer = memoizeM infer'
           tv <- infer v
           tx <-> tv
           infer body `withBinding` (x, forAll tx)
+
+        Prim PIntPlus ->
+          pure $ tyFun2 tyInt tyInt tyInt
+
+        Prim PIntMinus ->
+          pure $ tyFun2 tyInt tyInt tyInt
+
+        Prim PIntMul ->
+          pure $ tyFun2 tyInt tyInt tyInt
+
+        Prim PIntDiv ->
+          pure $ tyFun2 tyInt tyInt tyInt
+
+        Prim PIntEq ->
+          pure $ tyFun2 tyInt tyInt tyBool
+
+        Prim PIntLess ->
+          pure $ tyFun2 tyInt tyInt tyBool
+
+        Prim PIntNeg ->
+          pure $ tyFun tyInt tyInt
+
+        Prim PFirst -> do
+          a <- freshTy
+          b <- freshTy
+          pure $ tyFun (tyPair a b) a
+
+        Prim PSecond -> do
+          a <- freshTy
+          b <- freshTy
+          pure $ tyFun (tyPair a b) b
+
+        Prim PFix -> do
+          a <- freshTy
+          pure $ tyFun (tyFun a a) a
 
