@@ -5,7 +5,7 @@
 module Mental.PrettyPrint
   ( ppTree
   , ppAnnTree
-  , ppTypedTree
+  -- , ppTypedTree
   , ppTy
   , ppPrim
   , ppDecl
@@ -16,7 +16,8 @@ module Mental.PrettyPrint
 
 import           Protolude hiding (empty, (<>), (<$>))
 
-import           Data.Functor.Foldable (cata, para, project)
+import           Data.Functor.Foldable (para, project)
+import qualified Control.Comonad.Cofree as Cofree
 import           Control.Comonad.Trans.Cofree (CofreeF(..))
 import           Text.PrettyPrint.Leijen.Text
 
@@ -100,39 +101,39 @@ ppTy' (TyFun (project -> TyFun _ _, a) (_, b)) =
 ppTy' (TyFun (_, a) (_,b))   = a <+> "->" <+> b
 ppTy' (TyPair (_, a) (_, b)) = parens (a <> "," <+> b)
 
-ppTypedTree :: TypedTree -> Doc
-ppTypedTree = cata ppTypedTree'
+-- ppTypedTree :: TypedTree -> Doc
+-- ppTypedTree = cata ppTypedTree'
 
-ppTypedTree' :: CofreeF TreeF Ty Doc -> Doc
-ppTypedTree' t@(ty :< _) = parens (ppTree' t) <> ":" <+> ppTy ty
+-- ppTypedTree' :: CofreeF TreeF Ty Doc -> Doc
+-- ppTypedTree' t@(ty :< _) = parens (ppTree' t) <> ":" <+> ppTy ty
 
 ppTree :: Tree -> Doc
 ppTree = ppAnnTree . annotate (const ())
 
 ppAnnTree :: AnnTree a -> Doc
-ppAnnTree = cata ppTree'
+ppAnnTree = para ppTree'
 
-ppTree' :: CofreeF TreeF a Doc -> Doc
-ppTree' (_ :< Tru)            = "True"
-ppTree' (_ :< Fals)           = "False"
-ppTree' (_ :< Unit)           = "()"
-ppTree' (_ :< Var n)          = ppName n
-ppTree' (_ :< IntLit n)       = text (show n)
-ppTree' (_ :< Prim prim)      = ppPrim prim
-ppTree' (_ :< Pair a b)       = parens (a <> comma <+> b)
+ppTree' :: CofreeF TreeF a (AnnTree a, Doc) -> Doc
+ppTree' (_ :< Tru)       = "True"
+ppTree' (_ :< Fals)      = "False"
+ppTree' (_ :< Unit)      = "()"
+ppTree' (_ :< Var n)     = ppName n
+ppTree' (_ :< IntLit n)  = text (show n)
+ppTree' (_ :< Prim prim) = ppPrim prim
+ppTree' (_ :< Pair a b)  = parens (snd a <> comma <+> snd b)
 
 ppTree' (_ :< If cnd thn els) =
-  "if" <+> cnd <+> "then" <+> thn <+> "else" <+> els
+  "if" <+> snd cnd <+> "then" <+> snd thn <+> "else" <+> snd els
 
 ppTree' (_ :< Abs tp (x, body)) =
-  text "\\" <> ppName x <+> ppBind tp <+> text "->" <+> body
+  text "\\" <> ppName x <+> ppBind tp <+> text "->" <+> snd body
 
 ppTree' (_ :< Let x tp val body) =
-  text "let" <+> ppName x <+> ppBind tp <+> text "=" <+> val <+> "in" <+> body
+  text "let" <+> ppName x <+> ppBind tp <+> text "=" <+> snd val <+> "in" <+> snd body
 
--- ppTree' (_ :< App f x@(_ :< App _ _)) =
---   ppTree f <+> parens x
+ppTree' (_ :< App f (_ Cofree.:< App _ _, x)) =
+  snd f <+> parens x
 
 ppTree' (_ :< App f x) =
-  f <+> x
+  snd f <+> snd x
 
