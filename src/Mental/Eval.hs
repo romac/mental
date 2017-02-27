@@ -33,7 +33,7 @@ newtype Eval a = Eval (ReaderT Env (Except EvalError) a)
   deriving (Functor, Applicative, Monad, MonadReader Env, MonadError EvalError)
 
 runEval :: Eval a -> EvalResult a
-runEval (Eval x) = runExcept (runReaderT x (Map.singleton (mkName "test") (embed (IntLit 42))))
+runEval (Eval x) = runExcept (runReaderT x (Map.singleton (mkName "test") (mkIntLit 42)))
 
 evalUntypedTree :: UntypedTree -> EvalResult Tree
 evalUntypedTree tree = last <$> traceEvalUntypedTree tree
@@ -69,27 +69,28 @@ subst var for tree =
         for
 
       Let x tp v body | x == var ->
-        embed (Let x tp (s v) body)
+        mkLet x tp (s v) body
 
       Let x tp v body ->
-        embed (Let x tp (s v) (s body))
+        mkLet x tp (s v) (s body)
 
       Abs _ (x, _) | x == var ->
         tree
 
       Abs tp (x, body) ->
-        embed (Abs tp (x, s body))
+        mkAbs tp x (s body)
 
       App f x ->
-        embed (App (s f) (s x))
+        mkApp (s f) (s x)
 
       Pair a b ->
-        embed (Pair (s a) (s b))
+        mkPair (s a) (s b)
 
       If cnd thn els ->
-        embed (If (s cnd) (s thn) (s els))
+        mkIf (s cnd) (s thn) (s els)
 
-      _ -> tree
+      _ ->
+        tree
 
 eval :: Tree -> Eval Tree
 eval tree =
@@ -112,32 +113,36 @@ eval tree =
       -- local (Map.insert x v) (eval body)
       pure $ subst x v body
 
+   -- FIXME: Huge hack
+    App (project -> App (project -> Prim prim) a) b | isValue a && isValue b ->
+      evalBinaryPrim prim a b
+
     App (project -> Prim prim) v | isValue v ->
-      evalPrim prim v
+      evalUnaryPrim prim v
 
     App f x | isValue f -> do
       x' <- eval x
-      pure $ embed (App f x')
+      pure $ mkApp f x'
 
     App f x -> do
       f' <- eval f
-      pure $ embed (App f' x)
+      pure $ mkApp f' x
 
     Let x tp v body -> do
       v' <- eval v
-      pure $ embed (Let x tp v' body)
+      pure $ mkLet x tp v' body
 
     If cnd thn els -> do
       cnd' <- eval cnd
-      pure $ embed (If cnd' thn els)
+      pure $ mkIf cnd' thn els
 
     Pair a b | isValue a -> do
       b' <- eval b
-      pure $ embed (Pair a b')
+      pure $ mkPair a b'
 
     Pair a b -> do
       a' <- eval a
-      pure $ embed (Pair a' b)
+      pure $ mkPair a' b
 
     t ->
       throwError (NoRuleApplies (embed t))
@@ -146,16 +151,40 @@ eval tree =
 -- evalPrim IsZero (PrimApp Succ IsNumericValue) = pure Fals
 -- evalPrim Pred (PrimApp Succ t@IsNumericValue) = pure t
 
-evalPrim :: Primitive -> Tree -> Eval Tree
-evalPrim PFirst (project -> Pair a _) =
+evalUnaryPrim :: Primitive -> Tree -> Eval Tree
+evalUnaryPrim PFirst (project -> Pair a _) =
   pure a
 
-evalPrim PSecond (project -> Pair _ b) =
+evalUnaryPrim PSecond (project -> Pair _ b) =
   pure b
 
-evalPrim PFix t@(project -> Abs _ (x, body)) =
-  pure $ (error "subst") x (embed (App (embed (Prim PFix)) t)) body
+evalUnaryPrim PIntNeg (project -> IntLit n) =
+  pure $ mkUnOp negate n
 
-evalPrim prim t =
-  throwError $ NoRuleApplies (embed (App (embed (Prim prim)) t))
+evalUnaryPrim PFix t@(project -> Abs _ (x, body)) =
+  pure $ subst x (mkApp (mkPrim PFix) t) body
+
+evalUnaryPrim prim t =
+  throwError $ NoRuleApplies (mkApp (mkPrim prim) t)
+
+-- FIXME: Huge hack
+evalBinaryPrim :: Primitive -> Tree -> Tree -> Eval Tree
+evalBinaryPrim prim (project -> IntLit a) (project -> IntLit b) | isIntPrim prim =
+  case prim of
+    PIntPlus  -> pure $ mkBinOp (+)  a b
+    PIntMinus -> pure $ mkBinOp (-)  a b
+    PIntMul   -> pure $ mkBinOp (*)  a b
+    PIntDiv   -> pure $ mkBinOp div  a b
+    PIntEq    -> pure $ mkBinOp (==) a b
+    PIntLess  -> pure $ mkBinOp (<)  a b
+    _         -> throwError $ NoRuleApplies (mkApp (mkApp (mkPrim prim) (mkTree a)) (mkTree b))
+
+evalBinaryPrim prim a b =
+  throwError $ NoRuleApplies (mkApp (mkApp (mkPrim prim) a) b)
+
+mkUnOp :: (MkTree a, MkTree b) => (a -> b) -> a -> Tree
+mkUnOp op = mkTree . op
+
+mkBinOp :: (MkTree a, MkTree b) => (a -> a -> b) -> a -> a -> Tree
+mkBinOp op a b = mkTree (op a b)
 

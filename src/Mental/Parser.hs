@@ -91,12 +91,11 @@ pTerm = do
 pSimpleTerm :: Parser UntypedTree
 pSimpleTerm =
         try pBool
-    -- <|> try pNat
-    -- <|> try pNatOp
+    <|> try pIntLit
     <|> try pVar
     <|> try pIf
     <|> try pAbs
-    <|> try pFix
+    <|> try pPrim
     <|> try pLetRec
     <|> try pLet
     <|> try pPair
@@ -111,16 +110,25 @@ pVar = do
   <?> "variable"
 
 pBool :: Parser UntypedTree
-pBool = withPos' p
-  where p = reserved "True"  *> pure Tru
+pBool = withPos' p <?> "boolean"
+  where p =  reserved "True"  *> pure Tru
          <|> reserved "False" *> pure Fals
-         <?> "boolean"
 
--- pNatOp :: Parser UntypedTree
--- pNatOp = withPos' p
---   where p = try (reserved "succ"    *> pure (Prim Succ))
---          <|> try (reserved "pred"   *> pure (Prim Pred))
---          <|> try (reserved "iszero" *> pure (Prim IsZero))
+pPrim :: Parser UntypedTree
+pPrim = withPos' (Prim <$> p) <?> "primitive"
+  where p =  prim "fst"      *> pure PFirst
+         <|> prim "snd"      *> pure PSecond
+         <|> prim "fix"      *> pure PFix
+         <|> prim "intPlus"  *> pure PIntPlus
+         <|> prim "intMinus" *> pure PIntMinus
+         <|> prim "intMul"   *> pure PIntMul
+         <|> prim "intDiv"   *> pure PIntDiv
+         <|> prim "intEq"    *> pure PIntEq
+         <|> prim "intLess"  *> pure PIntLess
+         <|> prim "intNeg"   *> pure PIntNeg
+
+pIntLit :: Parser UntypedTree
+pIntLit = withPos' (IntLit <$> integer) <?> "integer"
 
 pIf :: Parser UntypedTree
 pIf = do
@@ -161,13 +169,6 @@ pLetRec = do
   pure $ pos :< Let name ty inner (pos :< App (pos :< Prim PFix) body)
   <?> "letrec"
 
-pFix :: Parser UntypedTree
-pFix = do
-  pos <- getPosition
-  reserved "fix"
-  pure (pos :< Prim PFix)
-  <?> "fix"
-
 pPair :: Parser UntypedTree
 pPair = parens p <?> "pair"
   where
@@ -189,16 +190,6 @@ pAbs = do
   pure $ pos :< Abs tp (name, body)
   <?> "abs"
 
--- pNat :: Parser UntypedTree
--- pNat = do
---   n <- integer
---   pure (iter n (PrimApp Succ) Zero)
---   <?> "number"
-
-iter :: (Eq n, Num n) => n -> (a -> a) -> a -> a
-iter 0  _ !x = x
-iter !n f !x = iter (n - 1) f (f x)
-
 pTy :: Parser Ty
 pTy = do
   a <- pSimpleTy
@@ -212,7 +203,7 @@ pSimpleTy :: Parser Ty
 pSimpleTy = try pPairTy <|> pBaseTy
 
 pBaseTy :: Parser Ty
-pBaseTy =  reserved "Nat"  *> pure tyNat
+pBaseTy =  reserved "Int"  *> pure tyInt
        <|> reserved "Bool" *> pure tyBool
        <|> (tyVar <$> identifier)
        <|> parens pTy

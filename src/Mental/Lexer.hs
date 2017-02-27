@@ -20,6 +20,7 @@ reservedWords =
   [ "if", "then", "else", "let", "letrec", "in", "case", "of", "as", "fix"
   , "True", "False", "succ", "pred", "iszero" , "fst", "snd", "inl", "inr"
   , "Nat", "Bool", "module", "type", "data", "where"
+  , "#intPlus", "#intMinus", "#intMul", "#intDiv", "#intEq", "#intLess", "#intNeg"
   ]
 
 scn, sc :: Parser ()
@@ -55,6 +56,9 @@ plus      = void $ symbol "+"
 
 reserved :: Text -> Parser ()
 reserved w = text' w *> notFollowedBy alphaNumChar *> sc
+
+prim :: Text -> Parser ()
+prim w = reserved ("#" <> w)
 
 text :: Text -> Parser Text
 text t = T.pack <$> string (T.unpack t)

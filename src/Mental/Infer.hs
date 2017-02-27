@@ -147,6 +147,12 @@ annotateTree tree = do
       fresh  = runExceptT except
    in runFresh fresh
 
+intBinaryPrimTy :: Ty
+intBinaryPrimTy = tyFun tyInt (tyFun tyInt tyInt)
+
+intUnaryPrimTy :: Ty
+intUnaryPrimTy = tyFun tyInt tyInt
+
 infer :: UntypedTree -> Infer Ty
 infer = memoizeM infer'
   where
@@ -154,6 +160,27 @@ infer = memoizeM infer'
       case tree of
         Tru  -> pure tyBool
         Fals -> pure tyBool
+
+        Prim PIntPlus ->
+          pure intBinaryPrimTy
+
+        Prim PIntMinus ->
+          pure intBinaryPrimTy
+
+        Prim PIntMul ->
+          pure intBinaryPrimTy
+
+        Prim PIntDiv ->
+          pure intBinaryPrimTy
+
+        Prim PIntEq ->
+          pure intBinaryPrimTy
+
+        Prim PIntLess ->
+          pure intBinaryPrimTy
+
+        Prim PIntNeg ->
+          pure intUnaryPrimTy
 
         Prim PFirst -> do
           a <- freshTy
@@ -183,7 +210,7 @@ infer = memoizeM infer'
           pure tt
 
         IntLit _ ->
-          pure tyNat
+          pure tyInt
 
         Var name -> do
           env <- ask

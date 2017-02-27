@@ -12,7 +12,7 @@ module Mental.Type
   , Scheme(..)
   , forAll
   , tyVar
-  , tyNat
+  , tyInt
   , tyBool
   , tyFun
   , tyPair
@@ -34,7 +34,7 @@ import           Mental.Name
 data TyF a
   = TyVar !TyName
   | TyFun !a !a
-  | TyNat
+  | TyInt
   | TyBool
   | TyPair !a !a
   deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Generic, Typeable)
@@ -55,8 +55,8 @@ forAll = Forall []
 tyVar :: TyName -> Ty
 tyVar = embed . TyVar
 
-tyNat :: Ty
-tyNat = embed TyNat
+tyInt :: Ty
+tyInt = embed TyInt
 
 tyBool :: Ty
 tyBool = embed TyBool

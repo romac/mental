@@ -67,9 +67,16 @@ ppDecl (TyDecl name ty) =
   "type" <+> ppName name <+> ppTy ty
 
 ppPrim :: Primitive -> Doc
-ppPrim PFirst  = "fst"
-ppPrim PSecond = "snd"
-ppPrim PFix    = "fix"
+ppPrim PFirst    = "#fst"
+ppPrim PSecond   = "#snd"
+ppPrim PFix      = "#fix"
+ppPrim PIntPlus  = "#intPlus"
+ppPrim PIntMinus = "#intMinus"
+ppPrim PIntMul   = "#intMul"
+ppPrim PIntDiv   = "#intDiv"
+ppPrim PIntEq    = "#intEq"
+ppPrim PIntLess  = "#intLess"
+ppPrim PIntNeg   = "#intNeg"
 
 ppName :: VarName -> Doc
 ppName = text . nameTextLazy
@@ -82,7 +89,7 @@ ppTy :: Ty -> Doc
 ppTy = para ppTy'
 
 ppTy' :: TyF (Ty, Doc) -> Doc
-ppTy' TyNat     = "Nat"
+ppTy' TyInt     = "Int"
 ppTy' TyBool    = "Bool"
 ppTy' (TyVar n) = ppName n
 

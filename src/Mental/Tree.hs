@@ -7,19 +7,21 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Mental.Tree
-  ( TreeF(..)
-  , Tree
-  , AnnTree
-  , unAnnotateTree
-  , isValue
-  , treeFv
-  , annTreeFv
-  , pattern IsValue
-  -- , pattern PrimApp
-  ) where
+  -- ( TreeF(..)
+  -- , Tree
+  -- , AnnTree
+  -- , unAnnotateTree
+  -- , isValue
+  -- , treeFv
+  -- , annTreeFv
+  -- , pattern IsValue
+  -- -- , pattern PrimApp
+  -- )
+  where
 
 import           Protolude
 
@@ -40,7 +42,7 @@ import           Mental.Type
 data TreeF a
   = Tru
   | Fals
-  | IntLit Int
+  | IntLit Integer
   | Var !VarName
   | If a a a
   | Abs !(Maybe Ty) !(VarName, a)
@@ -54,6 +56,55 @@ $(deriveEq1   ''TreeF)
 $(deriveOrd1  ''TreeF)
 $(deriveShow1 ''TreeF)
 $(deriveRead1 ''TreeF)
+
+class MkTree a where
+  mkTree :: (Base t ~ TreeF, Corecursive t) => a -> t
+
+instance MkTree Bool where
+  mkTree = mkBool
+
+instance MkTree Integer where
+  mkTree = mkIntLit
+
+instance MkTree Primitive where
+  mkTree = mkPrim
+
+instance (MkTree a, MkTree b) => MkTree (a, b) where
+  mkTree (a, b) = mkPair (mkTree a) (mkTree b)
+
+mkVar :: (Base t ~ TreeF, Corecursive t) => VarName -> t
+mkVar = embed . Var
+
+mkTrue :: (Base t ~ TreeF, Corecursive t) => t
+mkTrue = embed Tru
+
+mkFalse :: (Base t ~ TreeF, Corecursive t) => t
+mkFalse = embed Fals
+
+mkBool :: (Base t ~ TreeF, Corecursive t) => Bool -> t
+mkBool False = mkFalse
+mkBool True  = mkTrue
+
+mkIntLit :: (Base t ~ TreeF, Corecursive t) => Integer -> t
+mkIntLit = embed . IntLit
+
+mkPair :: (Base t ~ TreeF, Corecursive t) => t -> t -> t
+mkPair a b = embed (Pair a b)
+
+mkPrim :: (Base t ~ TreeF, Corecursive t) => Primitive -> t
+mkPrim = embed . Prim
+
+mkLet :: (Base t ~ TreeF, Corecursive t) => VarName -> Maybe Ty -> t -> t -> t
+mkLet x ty val body = embed (Let x ty val body)
+
+mkAbs :: (Base t ~ TreeF, Corecursive t) => Maybe Ty -> VarName -> t -> t
+mkAbs ty x body = embed (Abs ty (x, body))
+
+mkApp :: (Base t ~ TreeF, Corecursive t) => t -> t -> t
+mkApp f x = embed (App f x)
+
+mkIf :: (Base t ~ TreeF, Corecursive t) => t -> t -> t -> t
+mkIf c t e = embed (If c t e)
 
 type AnnTree = Cofree TreeF
 type Tree    = Fix TreeF
