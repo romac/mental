@@ -65,7 +65,7 @@ ppDecl (FunDecl name Nothing body) =
   ppName name <+> "=" <+> ppAnnTree body
 
 ppDecl (TyDecl name ty) =
-  "type" <+> ppName name <+> ppTy ty
+  "type" <+> ppName name <+> "=" <+> ppTy ty
 
 ppPrim :: Primitive -> Doc
 ppPrim PFirst    = "#fst"

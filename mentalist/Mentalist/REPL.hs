@@ -18,7 +18,7 @@ import           Mental.Tree.Untyped          (UntypedTree)
 import           Mental.Parser                (termParser, moduleParser)
 import           Mental.PrettyPrint           (ppTree, ppAnnTree, ppTy, ppModule, ppEvalError, ppTyError)
 import           Mental.Eval                  (traceEvalUntypedTree)
-import           Mental.Infer                 (runInfer', typeTree, typeModule)
+import           Mental.Infer                 (runInfer', typeTree', typeModule)
 
 import           Mentalist.REPL.Cmd           (Cmd( ..), parseCmd)
 
@@ -83,7 +83,7 @@ evalTree tree =
 
 runInferTree :: UntypedTree -> REPL ()
 runInferTree tree =
-  case runInfer' (typeTree tree) of
+  case runInfer' (typeTree' tree) of
     Left err        -> outputPretty (ppTyError err) >> outputNewline
     Right (ty :< _) -> outputPretty (ppTy ty)
 

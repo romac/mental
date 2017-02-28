@@ -9,10 +9,11 @@
 
 module Mental.Infer where
 
-#define DEBUG_INFER 0
+#define DEBUG_INFER 1
 
 import           Protolude hiding (Constraint, TypeError, First)
 
+import qualified Data.Text as T
 import qualified Data.Set as Set
 import           Data.Set ((\\))
 import qualified Data.Map.Strict as Map
@@ -37,7 +38,7 @@ import           Mental.Type
 import           Mental.Unify
 
 #if DEBUG_INFER
-import           Mental.PrettyPrint (prettyType)
+import           Mental.PrettyPrint (ppTy)
 #endif
 
 type InferResult = Either TyError
@@ -68,8 +69,16 @@ newtype Infer a
            )
 
 runInfer :: Env -> Infer a -> InferResult a
-runInfer env (Infer a) = fst <$> runFresh fresh
+#if DEBUG_INFER
+runInfer env (Infer a) = do
+  (res, cs) <- run
+  debugConstraints cs
+  pure res
+#else
+runInfer env (Infer a) = fst <$> run
+#endif
   where
+    run = runFresh fresh
     fresh  = runExceptT except
     except = evalRWST a env mempty
 
@@ -88,19 +97,37 @@ debugConstraints cs = do
   traceM ""
     where
       pp (a, b) = do
-        let l = show (prettyType a)
-        let r = show (prettyType b)
+        let l = show (ppTy a)
+        let r = show (ppTy b)
         traceM ("# " <> l <> " <-> " <> r)
 
-debugSubst :: Monad m => Subst -> m ()
-debugSubst (Subst sub) = do
+debugSubst :: Monad m => Substitution -> m ()
+debugSubst (Substitution sub) = do
   traceM "\n# Substitutions:"
   forM_ (Map.toList sub) pp
   traceM ""
     where
       pp (a, b) = do
-        let l = show a
-        let r = show (prettyType b)
+        let l = nameText a
+        let r = show (ppTy b)
+        traceM ("# " <> l <> " / " <> r)
+
+debugEnv :: Monad m => Env -> m ()
+debugEnv env = do
+  traceM "\n# Environent:"
+  forM_ (Map.toList env) pp
+  traceM ""
+    where
+      ppScheme :: Scheme -> Text
+      ppScheme (Forall [] ty) =
+        show (ppTy ty)
+
+      ppScheme (Forall vars ty) =
+        "forall " <> T.intercalate " " (nameText <$> vars) <> ". " <> show (ppTy ty)
+
+      pp (a, b) = do
+        let l = nameText a
+        let r = ppScheme b
         traceM ("# " <> l <> " / " <> r)
 #endif
 
@@ -130,35 +157,46 @@ withBinding a (x, scheme) = local (Map.insert x scheme) a
 typeModule :: UntypedModule -> InferResult TypedModule
 typeModule m@(Module _ decls) = do
   let env = mconcat (declToEnv <$> decls)
+  debugEnv env
   runInfer env (inferModule m)
-    where
-      declToEnv (FunDecl name (Just ty) _) =
-        Map.singleton name (quantify ty)
 
-      declToEnv (FunDecl name Nothing _) =
-        Map.singleton name (Forall [mkName "a"] (tyVar (mkName "a")))
+declToEnv :: Decl a -> Map VarName Scheme
+declToEnv (FunDecl name (Just ty) _) =
+  Map.singleton name (quantify ty)
 
-      declToEnv (TyDecl name ty) =
-        Map.singleton name (quantify ty)
+declToEnv (FunDecl name Nothing _) =
+  Map.singleton name (Forall [] (tyVar (mkName (nameText name))))
+  -- Map.singleton name (Forall [mkName "a"] (tyVar (mkName "a")))
 
-      quantify ty = Forall (Set.toList (ftv ty)) ty
+declToEnv (TyDecl name ty) =
+  Map.singleton name (quantify ty)
+
+quantify :: Ty -> Scheme
+quantify ty =
+  Forall (Set.toList (ftv ty)) ty
 
 inferModule :: UntypedModule -> Infer TypedModule
 inferModule (Module name decls) = do
   typedDecls <- forM decls typeDecl
   pure (Module name typedDecls)
 
--- FIXME
 typeDecl :: UntypedDecl -> Infer TypedDecl
-typeDecl (FunDecl name _ body) = do
-  ty' :< body' <- typeTree body
+typeDecl (FunDecl name ty body) = do
+  ty' :< body' <- typeTree ty body
   pure (FunDecl name (Just ty') (ty' :< body'))
 
-typeTree :: UntypedTree -> Infer TypedTree
-typeTree tree = do
-  (tyTree, cs) <- annotateTree tree
-  sub          <- hoistErr (solve cs)
-  pure (subst sub <$> tyTree)
+typeDecl (TyDecl name ty) =
+  pure (TyDecl name ty)
+
+typeTree :: Maybe Ty -> UntypedTree -> Infer TypedTree
+typeTree expectedTy tree = do
+  (ty :< tyTree, cs) <- annotateTree tree
+  let css = maybe cs (\e -> Set.singleton (ty, e) <> cs) expectedTy
+  sub <- hoistErr (solve css)
+  pure (subst sub <$> (subst sub ty) :< tyTree)
+
+typeTree' :: UntypedTree -> Infer TypedTree
+typeTree' = typeTree Nothing
 
 annotateTree :: UntypedTree -> Infer (TypedTree, Set Constraint)
 annotateTree tree = listen (annotateM inferTree tree)
