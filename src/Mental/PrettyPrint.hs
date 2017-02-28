@@ -7,6 +7,7 @@ module Mental.PrettyPrint
   , ppAnnTree
   -- , ppTypedTree
   , ppTy
+  , ppScheme
   , ppPrim
   , ppDecl
   , ppModule
@@ -85,6 +86,11 @@ ppName = text . nameTextLazy
 ppBind :: Maybe Ty -> Doc
 ppBind Nothing   = empty
 ppBind (Just tp) = ":" <+> ppTy tp
+
+ppScheme :: Scheme -> Doc
+ppScheme (Forall [] ty) = ppTy ty
+ppScheme (Forall vs ty) =
+  "forall" <+> cat (punctuate " " (fmap ppName vs)) <> "." <+> ppTy ty
 
 ppTy :: Ty -> Doc
 ppTy = para ppTy'

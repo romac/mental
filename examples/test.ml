@@ -1,7 +1,6 @@
 
 module Example where
 
-id : a -> a
 id = \x -> (x, 1)
 
 id2 = \x -> x

@@ -38,7 +38,7 @@ import           Mental.Type
 import           Mental.Unify
 
 #if DEBUG_INFER
-import           Mental.PrettyPrint (ppTy)
+import           Mental.PrettyPrint (ppTy, ppScheme)
 #endif
 
 type InferResult = Either TyError
@@ -118,16 +118,9 @@ debugEnv env = do
   forM_ (Map.toList env) pp
   traceM ""
     where
-      ppScheme :: Scheme -> Text
-      ppScheme (Forall [] ty) =
-        show (ppTy ty)
-
-      ppScheme (Forall vars ty) =
-        "forall " <> T.intercalate " " (nameText <$> vars) <> ". " <> show (ppTy ty)
-
       pp (a, b) = do
         let l = nameText a
-        let r = ppScheme b
+        let r = show (ppScheme b)
         traceM ("# " <> l <> " / " <> r)
 #endif
 
