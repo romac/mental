@@ -1,8 +1,12 @@
 
+module Example where
+
 id : a -> a
 id = \x -> (x, 1)
 
 id2 = \x -> x
+
+id3 = id2
 
 -- type Id = a -> a
 --

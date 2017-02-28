@@ -49,14 +49,14 @@ ppTyError err = errorDoc (pp err)
     pp (UnificationError s t)  = "Cannot unify:" <+> ppTy s <+> "with" <+> ppTy t
     pp (ValueNotFound n)       = "Value not found:" <+> ppName n
 
-ppModule :: Module -> Doc
+ppModule :: Module a -> Doc
 ppModule (Module name decls) =
   "module" <+> ppName name <+> "where" <> line <> line <> decls'
     where
       decls' = vcat (fmap pp decls)
       pp decl = ppDecl decl <> line
 
-ppDecl :: Decl -> Doc
+ppDecl :: Decl a -> Doc
 ppDecl (FunDecl name (Just ty) body) =
   ppName name <+> ":" <+> ppTy ty
     <$$> ppDecl (FunDecl name Nothing body)

@@ -36,11 +36,12 @@ integer = lexeme L.integer
 symbol :: Text -> Parser Text
 symbol s = T.pack <$> L.symbol sc (T.unpack s)
 
-lambda, equal, arrow, fatArrow :: Parser ()
+lambda, equal, arrow, fatArrow, unit :: Parser ()
 lambda   = void $ symbol "\\"
 equal    = void $ symbol "= "
 arrow    = void $ symbol "->"
 fatArrow = void $ symbol "=>"
+unit     = void $ symbol "(" >> symbol ")"
 
 parens, braces, brackets :: Parser a -> Parser a
 parens    = between (symbol "(") (symbol ")")

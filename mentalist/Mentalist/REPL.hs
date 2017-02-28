@@ -13,12 +13,12 @@ import           Text.Megaparsec.Text         (Parser)
 import           Text.PrettyPrint.Leijen.Text (Doc)
 import           System.Console.Haskeline
 
--- import           Mental.Decl                  (Module)
+import           Mental.Decl                  (UntypedModule, TypedModule)
 import           Mental.Tree.Untyped          (UntypedTree)
 import           Mental.Parser                (termParser, moduleParser)
 import           Mental.PrettyPrint           (ppTree, ppAnnTree, ppTy, ppModule, ppEvalError, ppTyError)
 import           Mental.Eval                  (traceEvalUntypedTree)
-import           Mental.Infer                 (typeTree, typeModule)
+import           Mental.Infer                 (runInfer', typeTree, typeModule)
 
 import           Mentalist.REPL.Cmd           (Cmd( ..), parseCmd)
 
@@ -63,7 +63,7 @@ loadFileCmd :: FilePath -> REPL ()
 loadFileCmd path = do
   code <- liftIO $ T.readFile path
   outputTextLn code
-  -- parsePrintEvalModule path code
+  parsePrintEvalModule path code
 
 parseCode :: Parser a -> FilePath -> Text -> REPL (Maybe a)
 parseCode withParser file code =
@@ -83,15 +83,15 @@ evalTree tree =
 
 runInferTree :: UntypedTree -> REPL ()
 runInferTree tree =
-  case typeTree tree of
+  case runInfer' (typeTree tree) of
     Left err        -> outputPretty (ppTyError err) >> outputNewline
     Right (ty :< _) -> outputPretty (ppTy ty)
 
--- runInferModule :: Module -> REPL () -> REPL ()
--- runInferModule mod' onSuccess =
---   case typeModule mod' of
---     Left err -> outputPretty (ppTyError err) >> outputNewline
---     Right () -> onSuccess
+runInferModule :: UntypedModule -> (TypedModule -> REPL ()) -> REPL ()
+runInferModule mod' onSuccess =
+  case typeModule mod' of
+    Left err        -> outputPretty (ppTyError err) >> outputNewline
+    Right res       -> onSuccess res
 
 parsePrintEvalTerm :: FilePath -> Text -> REPL ()
 parsePrintEvalTerm file code = do
@@ -108,14 +108,15 @@ parsePrintEvalTerm file code = do
 
     outputNewline
 
--- parsePrintEvalModule :: FilePath -> Text -> REPL ()
--- parsePrintEvalModule file code = do
---   maybeMod <- parseCode moduleParser file code
---   forM_ maybeMod $ \mod' -> do
---     header "Parsed"
---     outputPretty (ppModule mod')
-
---     runInferModule mod' (header "Typechecks!")
+parsePrintEvalModule :: FilePath -> Text -> REPL ()
+parsePrintEvalModule file code = do
+  maybeMod <- parseCode moduleParser file code
+  forM_ maybeMod $ \mod' -> do
+    header "Parsed"
+    outputPretty (ppModule mod')
+    runInferModule mod' $ \typedMod -> do
+      header "It typechecks!"
+      outputPretty (ppModule typedMod)
 
 runREPL :: IO ()
 runREPL = runInputT defaultSettings repl

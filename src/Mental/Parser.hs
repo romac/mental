@@ -27,10 +27,10 @@ withPos f = (:<) <$> getPosition <*> f (withPos f)
 withPos' :: (forall a. Parser (f a)) -> Parser (Cofree f SourcePos)
 withPos' p = (:<) <$> getPosition <*> p
 
-moduleParser :: Parser Module
+moduleParser :: Parser UntypedModule
 moduleParser = between scn eof (nonIndented pModule)
 
-replEntryParser :: Parser (Either Decl UntypedTree)
+replEntryParser :: Parser (Either UntypedDecl UntypedTree)
 replEntryParser = between sc eof $ do
   optDecl <- optional pDecl
   case optDecl of
@@ -40,18 +40,19 @@ replEntryParser = between sc eof $ do
 termParser :: Parser UntypedTree
 termParser = between sc eof (nonIndented pTerm)
 
-pModule :: Parser Module
+pModule :: Parser UntypedModule
 pModule = do
   reserved "module"
   name <- identifier
   reserved "where"
+  scn
   decls <- pDecl `sepEndBy` scn
   pure $ Module name decls
 
-pDecl :: Parser Decl
+pDecl :: Parser UntypedDecl
 pDecl = try pFunDecl <|> pTyDecl
 
-pFunDecl :: Parser Decl
+pFunDecl :: Parser UntypedDecl
 pFunDecl = do
   nameTy <- (optional . try) $ do
     name <- identifier'
@@ -61,7 +62,7 @@ pFunDecl = do
     pure (name, ty)
 
   (name, ty) <- case nameTy of
-    Just (name, ty) -> (,) <$> text name <*> pure (Just ty)
+    Just (name, ty) -> (,) <$> text name   <*> pure (Just ty)
     Nothing         -> (,) <$> identifier' <*> pure Nothing
 
   sc
@@ -71,7 +72,7 @@ pFunDecl = do
   pure $ FunDecl ident ty body
   <?> "function declaration"
 
-pTyDecl :: Parser Decl
+pTyDecl :: Parser UntypedDecl
 pTyDecl = do
   reserved "type"
   name <- identifier
@@ -172,7 +173,6 @@ pLetRec = do
 
 pUnit :: Parser UntypedTree
 pUnit = withPos' (unit *> pure Unit <?> "unit")
-  where unit = symbol "(" >> symbol ")"
 
 pPair :: Parser UntypedTree
 pPair = parens p <?> "pair"
@@ -213,8 +213,6 @@ pBaseTy =  reserved "Int"  *> pure tyInt
        <|> unit            *> pure tyUnit
        <|> (tyVar <$> identifier)
        <|> parens pTy
-  where
-    unit = symbol "(" >> symbol ")"
 
 pPairTy :: Parser Ty
 pPairTy = parens $ do
