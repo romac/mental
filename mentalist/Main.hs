@@ -1,10 +1,15 @@
 
 module Main where
 
-import Protolude
+import           Protolude
 
-import Mentalist.REPL (runREPL)
+import           System.Environment (getArgs)
+import           Mentalist.REPL     (runREPL, interactive, noninteractive)
 
 main :: IO ()
-main = runREPL
+main = do
+  args <- getArgs
+  case args of
+    [file] -> runREPL (noninteractive file)
+    _      -> runREPL interactive
 

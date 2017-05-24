@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Mentalist.REPL (runREPL) where
+module Mentalist.REPL
+  ( runREPL
+  , interactive
+  , noninteractive
+  ) where
 
 import           Protolude
 
@@ -18,7 +22,7 @@ import           Mental.Tree.Untyped          (UntypedTree)
 import           Mental.Parser                (termParser, moduleParser)
 import           Mental.PrettyPrint           (ppTree, ppAnnTree, ppTy, ppModule, ppEvalError, ppTyError)
 import           Mental.Eval                  (traceEvalUntypedTree)
-import           Mental.Infer                 (runInfer', typeTree', typeModule)
+import           Mental.Infer                 (runInfer, typeTree, typeModule)
 
 import           Mentalist.REPL.Cmd           (Cmd( ..), parseCmd)
 
@@ -41,12 +45,12 @@ header h = do
   outputNewline
   outputTextLn $ "=== " <> h <> ": ==="
 
-execCmd :: Cmd -> REPL ()
-execCmd CmdQuit          = pure ()
-execCmd CmdNone          = noCmd            >> repl
-execCmd (CmdUnknown cmd) = unknownCmd cmd   >> repl
-execCmd (CmdLoad path)   = loadFileCmd path >> repl
-execCmd (CmdType expr)   = showTypeCmd expr >> repl
+execCmd :: REPL () -> Cmd -> REPL ()
+execCmd _    CmdQuit          = pure ()
+execCmd next CmdNone          = noCmd            >> next
+execCmd next (CmdUnknown cmd) = unknownCmd cmd   >> next
+execCmd next (CmdLoad path)   = loadFileCmd path >> next
+execCmd next (CmdType expr)   = showTypeCmd expr >> next
 
 noCmd :: REPL ()
 noCmd = outputTextLn "please specific a command"
@@ -83,7 +87,7 @@ evalTree tree =
 
 runInferTree :: UntypedTree -> REPL ()
 runInferTree tree =
-  case runInfer' (typeTree' tree) of
+  case runInfer mempty (typeTree tree) of
     Left err        -> outputPretty (ppTyError err) >> outputNewline
     Right (ty :< _) -> outputPretty (ppTy ty)
 
@@ -118,23 +122,27 @@ parsePrintEvalModule file code = do
       header "It typechecks!"
       outputPretty (ppModule typedMod)
 
-runREPL :: IO ()
-runREPL = runInputT defaultSettings repl
+runREPL :: REPL a -> IO a
+runREPL = runInputT defaultSettings
 
-repl :: REPL ()
-repl = do
+interactive :: REPL ()
+interactive = do
   maybeLine <- getInputLine "Mental> "
   case maybeLine of
     Nothing ->
       outputNewline
 
     Just "" ->
-      repl
+      interactive
 
     Just (':' : cmd) -> do
-      execCmd (parseCmd (T.pack cmd))
+      execCmd interactive (parseCmd (T.pack cmd))
 
     Just line -> do
       parsePrintEvalTerm "<repl>" (T.pack line)
-      repl
+      interactive
+
+noninteractive :: FilePath -> REPL ()
+noninteractive path = do
+  execCmd (pure ()) (CmdLoad path)
 

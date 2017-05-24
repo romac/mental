@@ -7,12 +7,13 @@ id2 = \x -> x
 
 id3 = id2
 
-type Id = a -> a
+twice = \x -> \y -> if x then x else y
 
-id3 : Id
-id3 = \x -> x
+-- type Id = a -> a
 
-one : Int
-one = let x = 1 in x
+-- id4 : Id
+-- id4 = \x -> x
 
+-- one : Int
+one = let x = 1 in id3 x
 

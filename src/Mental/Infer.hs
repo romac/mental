@@ -47,13 +47,13 @@ type Env = Map VarName Scheme
 
 type Constraint = (Ty, Ty)
 
-type Memo = Map UntypedTree Ty
+type InferState = Map UntypedTree Ty
 
 newtype Infer a
   = Infer (RWST
             Env
             (Set Constraint)
-            Memo
+            InferState
             (ExceptT
               TyError
                 Fresh)
@@ -64,7 +64,7 @@ newtype Infer a
            , MonadFresh
            , MonadReader Env
            , MonadWriter (Set Constraint)
-           , MonadState Memo
+           , MonadState InferState
            , MonadError TyError
            )
 
@@ -81,9 +81,6 @@ runInfer env (Infer a) = fst <$> run
     run = runFresh fresh
     fresh  = runExceptT except
     except = evalRWST a env mempty
-
-runInfer' :: Infer a -> InferResult a
-runInfer' = runInfer mempty
 
 hoistErr :: MonadError e m => Either e a -> m a
 hoistErr (Left  e) = throwError e
@@ -114,14 +111,14 @@ debugSubst (Substitution sub) = do
 
 debugEnv :: Monad m => Env -> m ()
 debugEnv env = do
-  traceM "\n# Environent:"
+  traceM "\n# Environment:"
   forM_ (Map.toList env) pp
   traceM ""
     where
       pp (a, b) = do
         let l = nameText a
         let r = show (ppScheme b)
-        traceM ("# " <> l <> " / " <> r)
+        traceM ("- " <> l <> " <=> " <> r)
 #endif
 
 freshTy :: MonadFresh m => m Ty
@@ -139,7 +136,8 @@ instantiate (Forall params ty) = do
   pure $ subst sub ty
 
 addConstraint :: Ty -> Ty -> Infer ()
-addConstraint a b = tell (Set.singleton (a, b))
+addConstraint a b = do
+  tell (Set.singleton (a, b))
 
 (<->) :: Ty -> Ty -> Infer ()
 (<->) = addConstraint
@@ -170,39 +168,35 @@ quantify ty =
 
 inferModule :: UntypedModule -> Infer TypedModule
 inferModule (Module name decls) = do
-  typedDecls <- forM decls typeDecl
+  (preDecls, cs) <- listen (traverse preTypeDecl decls)
+  sub <- hoistErr (solve cs)
+  debugConstraints cs
+  debugSubst sub
+  let typedDecls = substDecl sub <$> preDecls
   pure (Module name typedDecls)
 
-typeDecl :: UntypedDecl -> Infer TypedDecl
-typeDecl (FunDecl name ty body) = do
-  ty' :< body' <- typeTree ty body
-  pure (FunDecl name (Just ty') (ty' :< body'))
+substDecl :: Substitution -> TypedDecl -> TypedDecl
+substDecl _ (TyDecl name ty) = TyDecl name ty
+substDecl sub (FunDecl name ty body) =
+  FunDecl name (subst sub <$> ty) (subst sub <$> body)
 
-typeDecl (TyDecl name ty) =
-  pure (TyDecl name ty)
+preTypeDecl :: UntypedDecl -> Infer TypedDecl
+preTypeDecl (TyDecl name ty) = pure (TyDecl name ty)
+preTypeDecl (FunDecl name _ body) = do
+  ty :< tree <- annotateTree body
+  pure (FunDecl name (Just ty) (ty :< tree))
 
-typeTree :: Maybe Ty -> UntypedTree -> Infer TypedTree
-typeTree expectedTy tree = do
-  (ty :< tyTree, cs) <- annotateTree tree
-  let css = maybe cs (\e -> Set.singleton (ty, e) <> cs) expectedTy
-  sub <- hoistErr (solve css)
-  pure (subst sub <$> (subst sub ty) :< tyTree)
+typeTree :: UntypedTree -> Infer TypedTree
+typeTree tree = do
+  (preTree, cs) <- listen (annotateTree tree)
+  sub <- hoistErr (solve cs)
+  pure (subst sub <$> preTree)
 
-typeTree' :: UntypedTree -> Infer TypedTree
-typeTree' = typeTree Nothing
+annotateTree :: UntypedTree -> Infer TypedTree
+annotateTree = annotateM inferType
 
-annotateTree :: UntypedTree -> Infer (TypedTree, Set Constraint)
-annotateTree tree = listen (annotateM inferTree tree)
-
--- annotateTree' :: UntypedTree -> InferResult (TypedTree, Set Constraint)
--- annotateTree' tree = do
---   let infer' = annotateTree tree
---       except = evalRWST (runInfer infer') Map.empty Map.empty
---       fresh  = runExceptT except
---    in runFresh fresh
-
-inferTree :: UntypedTree -> Infer Ty
-inferTree = memoizeM infer'
+inferType :: UntypedTree -> Infer Ty
+inferType = memoizeM infer'
   where
     infer' (_ :< tree) =
       case tree of
@@ -217,12 +211,12 @@ inferTree = memoizeM infer'
           pure tyBool
 
         Pair a b ->
-          tyPair <$> inferTree a <*> inferTree b
+          tyPair <$> inferType a <*> inferType b
 
         If cnd thn els -> do
-          tc <- inferTree cnd
-          tt <- inferTree thn
-          te <- inferTree els
+          tc <- inferType cnd
+          tt <- inferType thn
+          te <- inferType els
 
           tc <-> tyBool
           tt <-> te
@@ -240,13 +234,13 @@ inferTree = memoizeM infer'
 
         Abs ty (x, body) -> do
           tp  <- fromMaybe freshTy (pure <$> ty)
-          tp' <- inferTree body `withBinding` (x, forAll tp)
+          tp' <- inferType body `withBinding` (x, forAll tp)
 
           pure (tyFun tp tp')
 
         App f x -> do
-          tf <- inferTree f
-          tx <- inferTree x
+          tf <- inferType f
+          tx <- inferType x
           ty <- freshTy
 
           tf <-> tyFun tx ty
@@ -255,17 +249,17 @@ inferTree = memoizeM infer'
 
         Let x Nothing v body -> do
           env       <- ask
-          (tv, cv)  <- listen (inferTree v)
+          (tv, cv)  <- listen (inferType v)
           case solve cv of
             Left err -> throwError err
             Right sub -> do
               let scheme = generalize (subst sub tv) (subst sub env)
-              local (subst sub) (inferTree body) `withBinding` (x, scheme)
+              local (subst sub) (inferType body) `withBinding` (x, scheme)
 
         Let x (Just tx) v body -> do
-          tv <- inferTree v
+          tv <- inferType v
           tx <-> tv
-          inferTree body `withBinding` (x, forAll tx)
+          inferType body `withBinding` (x, forAll tx)
 
         Prim PIntPlus ->
           pure $ tyFun2 tyInt tyInt tyInt

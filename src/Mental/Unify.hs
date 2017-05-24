@@ -25,6 +25,10 @@ import           Mental.Subst
 import           Mental.Type
 import qualified Mental.Subst as Subst
 
+#if DEBUG_UNIFY
+import           Mental.PrettyPrint (ppTy)
+#endif
+
 type Constraint = (Ty, Ty)
 
 type UnifyState = (Substitution, [Constraint])
@@ -57,8 +61,8 @@ unify = do
     ((s, t) : cs) -> do
 
 #if DEBUG_UNIFY
-      let x' = show (prettyType s)
-      let y' = show (prettyType t)
+      let x' = show (ppTy s)
+      let y' = show (ppTy t)
       traceM $ " * Unifying " <> x' <> " with " <> y'
 #endif
 
