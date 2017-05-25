@@ -17,3 +17,4 @@ twice = \x -> \y -> if x then x else y
 -- one : Int
 one = let x = 1 in id3 x
 
+-- two = let x = True in id2 x

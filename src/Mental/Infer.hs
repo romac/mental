@@ -124,8 +124,8 @@ debugEnv env = do
 freshTy :: MonadFresh m => m Ty
 freshTy = tyVar <$> freshName
 
-generalize :: Ty -> Env -> Scheme
-generalize ty env =
+generalize :: Env -> Ty -> Scheme
+generalize env ty =
   let vars = Set.toList (ftv ty \\ ftv env)
    in Forall vars ty
 
@@ -153,23 +153,21 @@ typeModule m@(Module _ decls) = do
 
 declToEnv :: Decl a -> Map VarName Scheme
 declToEnv (FunDecl name (Just ty) _) =
-  Map.singleton name (quantify ty)
+  Map.singleton name (generalize mempty ty)
 
 declToEnv (FunDecl name Nothing _) =
   Map.singleton name (Forall [] (tyVar (mkName (nameText name))))
-  -- Map.singleton name (Forall [mkName "a"] (tyVar (mkName "a")))
 
 declToEnv (TyDecl name ty) =
-  Map.singleton name (quantify ty)
-
-quantify :: Ty -> Scheme
-quantify ty =
-  Forall (Set.toList (ftv ty)) ty
+  Map.singleton name (generalize mempty ty)
 
 inferModule :: UntypedModule -> Infer TypedModule
 inferModule (Module name decls) = do
-  (preDecls, cs) <- listen (traverse preTypeDecl decls)
-  sub <- hoistErr (solve cs)
+  (pre, cs) <- listen (traverse preTypeDecl decls)
+  let preDecls = fst <$> pre
+  let preConstrs = Set.fromList (snd <$> pre)
+  sub <- hoistErr (solve (Set.union preConstrs cs))
+  debugConstraints preConstrs
   debugConstraints cs
   debugSubst sub
   let typedDecls = substDecl sub <$> preDecls
@@ -180,11 +178,18 @@ substDecl _ (TyDecl name ty) = TyDecl name ty
 substDecl sub (FunDecl name ty body) =
   FunDecl name (subst sub <$> ty) (subst sub <$> body)
 
-preTypeDecl :: UntypedDecl -> Infer TypedDecl
-preTypeDecl (TyDecl name ty) = pure (TyDecl name ty)
+preTypeDecl :: UntypedDecl -> Infer (TypedDecl, Constraint)
+preTypeDecl (TyDecl name ty) =
+  pure (TyDecl name ty, (ty, ty))
+
 preTypeDecl (FunDecl name _ body) = do
   ty :< tree <- annotateTree body
-  pure (FunDecl name (Just ty) (ty :< tree))
+  finTy <- lookupEnv name
+  -- envTy <- lookupEnv name
+  -- let gEnvTyp = generalize mempty envTy
+  -- finTy <- instantiate gEnvTyp
+  let constr = (finTy, ty)
+  pure (FunDecl name (Just ty) (ty :< tree), constr)
 
 typeTree :: UntypedTree -> Infer TypedTree
 typeTree tree = do
@@ -194,6 +199,13 @@ typeTree tree = do
 
 annotateTree :: UntypedTree -> Infer TypedTree
 annotateTree = annotateM inferType
+
+lookupEnv :: VarName -> Infer Ty
+lookupEnv name = do
+  env <- ask
+  case Map.lookup name env of
+    Nothing     -> throwError (ValueNotFound name)
+    Just scheme -> instantiate scheme
 
 inferType :: UntypedTree -> Infer Ty
 inferType = memoizeM infer'
@@ -226,11 +238,8 @@ inferType = memoizeM infer'
         IntLit _ ->
           pure tyInt
 
-        Var name -> do
-          env <- ask
-          case Map.lookup name env of
-            Nothing     -> throwError (ValueNotFound name)
-            Just scheme -> instantiate scheme
+        Var name ->
+          lookupEnv name
 
         Abs ty (x, body) -> do
           tp  <- fromMaybe freshTy (pure <$> ty)
@@ -253,7 +262,7 @@ inferType = memoizeM infer'
           case solve cv of
             Left err -> throwError err
             Right sub -> do
-              let scheme = generalize (subst sub tv) (subst sub env)
+              let scheme = generalize (subst sub env) (subst sub tv)
               local (subst sub) (inferType body) `withBinding` (x, scheme)
 
         Let x (Just tx) v body -> do
