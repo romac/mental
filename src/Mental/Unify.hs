@@ -67,7 +67,7 @@ unify = do
 #endif
 
       (sub', cs') <- unify' (s, t)
-      put (sub' <> sub, cs' <> (Subst.biApply sub' <$> cs))
+      put (sub' <> sub, cs' <> (subst sub' <$> cs))
       unify
 
 unify' :: Constraint -> Unify UnifyState
@@ -100,6 +100,6 @@ unify' (s, t) =
   where
     unifyPair (a, a') (b, b') = do
       (s1, c1) <- unify' (a, a')
-      (s2, c2) <- unify' (Subst.biApply s1 (b, b'))
+      (s2, c2) <- unify' (subst s1 (b, b'))
       pure (s1 <> s2, c1 <> c2)
 
