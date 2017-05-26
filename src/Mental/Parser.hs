@@ -54,7 +54,6 @@ pDecl = try pFunDecl <|> pTyDecl
 
 pFunDecl :: Parser UntypedDecl
 pFunDecl = do
-  pos <- getPosition
   nameTy <- (optional . try) $ do
     name <- identifier'
     colon
@@ -70,7 +69,7 @@ pFunDecl = do
   equal
   body <- pTerm
   let ident = mkName name
-  pure $ FunDecl ident ty (pos :< Let ident Nothing body (pos :< Var ident))
+  pure $ FunDecl ident ty body
   <?> "function declaration"
 
 pTyDecl :: Parser UntypedDecl
