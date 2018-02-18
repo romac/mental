@@ -1,6 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.17.0.
+-- This file has been generated from package.yaml by hpack version 0.20.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 710d15518788148dae4874c70b2ec7d3f8d2fe6ecc300d9b0e1ee9090138643a
 
 name:           mental
 version:        0.1.0.0
@@ -61,6 +63,8 @@ library
       Mental.Tree.Untyped
       Mental.Type
       Mental.Unify
+  other-modules:
+      Paths_mental
   default-language: Haskell2010
 
 executable mentalist
@@ -81,6 +85,7 @@ executable mentalist
   other-modules:
       Mentalist.REPL
       Mentalist.REPL.Cmd
+      Paths_mental
   default-language: Haskell2010
 
 test-suite mental-test
@@ -94,4 +99,6 @@ test-suite mental-test
       base
     , mental
     , protolude
+  other-modules:
+      Paths_mental
   default-language: Haskell2010

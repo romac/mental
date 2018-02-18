@@ -8,25 +8,27 @@ module Mentalist.REPL
 
 import           Protolude
 
-import qualified Data.Text    as T
-import qualified Data.Text.IO as T
+import qualified Data.Text                    as T
+import qualified Data.Text.IO                 as T
 
-import           Control.Comonad.Cofree       (Cofree(..))
-import           Text.Megaparsec              (parse, parseErrorPretty)
-import           Text.Megaparsec.Text         (Parser)
-import           Text.PrettyPrint.Leijen.Text (Doc)
+import           Control.Comonad.Cofree       (Cofree (..))
 import           System.Console.Haskeline
+import           Text.Megaparsec              (Parsec, parse, parseErrorPretty)
+import           Text.PrettyPrint.Leijen.Text (Doc)
 
-import           Mental.Decl                  (UntypedModule, TypedModule)
-import           Mental.Tree.Untyped          (UntypedTree)
-import           Mental.Parser                (termParser, moduleParser)
-import           Mental.PrettyPrint           (ppTree, ppAnnTree, ppTy, ppModule, ppEvalError, ppTyError)
+import           Mental.Decl                  (TypedModule, UntypedModule)
 import           Mental.Eval                  (traceEvalUntypedTree)
-import           Mental.Infer                 (runInfer, typeTree, typeModule)
+import           Mental.Infer                 (runInfer, typeModule, typeTree)
+import           Mental.Parser                (moduleParser, termParser)
+import           Mental.PrettyPrint           (ppAnnTree, ppEvalError, ppModule,
+                                               ppTree, ppTy, ppTyError)
+import           Mental.Tree.Untyped          (UntypedTree)
 
-import           Mentalist.REPL.Cmd           (Cmd( ..), parseCmd)
+import           Mentalist.REPL.Cmd           (Cmd (..), parseCmd)
 
 type REPL a = InputT IO a
+
+type Parser = Parsec Void Text
 
 outputText :: Text -> REPL ()
 outputText = outputStr . T.unpack
@@ -94,8 +96,8 @@ runInferTree tree =
 runInferModule :: UntypedModule -> (TypedModule -> REPL ()) -> REPL ()
 runInferModule mod' onSuccess =
   case typeModule mod' of
-    Left err        -> outputPretty (ppTyError err) >> outputNewline
-    Right res       -> onSuccess res
+    Left err  -> outputPretty (ppTyError err) >> outputNewline
+    Right res -> onSuccess res
 
 parsePrintEvalTerm :: FilePath -> Text -> REPL ()
 parsePrintEvalTerm file code = do

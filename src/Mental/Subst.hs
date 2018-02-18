@@ -1,24 +1,25 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Mental.Subst where
 
-import           Protolude hiding (empty)
+import           Prelude                      (error)
+import           Protolude                    hiding (empty)
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import           Data.Set ((\\))
+import qualified Data.Map                     as Map
+import           Data.Set                     ((\\))
+import qualified Data.Set                     as Set
 
-import           Data.Functor.Foldable (cata, para, embed, project)
-import           Control.Comonad.Trans.Cofree (CofreeF(..))
+import           Control.Comonad.Trans.Cofree (CofreeF (..))
+import           Data.Functor.Foldable        (cata, embed, para, project)
 
 import           Mental.Name
-import           Mental.Type
 import           Mental.Tree
+import           Mental.Type
 
 newtype Substitution = Substitution (Map TyName Ty)
   deriving (Eq, Ord, Show, Read, Semigroup, Monoid)

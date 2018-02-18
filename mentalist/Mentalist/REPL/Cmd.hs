@@ -1,15 +1,16 @@
+{-# LANGUAGE OverloadedStrings #-}
 
 module Mentalist.REPL.Cmd
   ( Cmd(..)
   , parseCmd
   ) where
 
-import           Protolude hiding (try)
+import           Protolude            hiding (try)
 
-import qualified Data.Text as T
+import qualified Data.Text            as T
 
 import           Text.Megaparsec
-import           Text.Megaparsec.Text
+import           Text.Megaparsec.Char
 
 data Cmd
   = CmdQuit
@@ -18,6 +19,8 @@ data Cmd
   | CmdUnknown Text
   | CmdNone
   deriving (Eq, Show)
+
+type Parser = Parsec Void Text
 
 parseCmd :: Text -> Cmd
 parseCmd input | T.null input = CmdNone

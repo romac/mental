@@ -2,18 +2,20 @@
 
 module Mental.Lexer where
 
-import           Protolude hiding (try, check)
+import           Protolude                  hiding (check, try)
 
-import           Control.Monad (fail)
+import           Control.Monad              (fail)
 
-import           Data.Text (Text)
-import qualified Data.Text as T
+import           Data.Text                  (Text)
+import qualified Data.Text                  as T
 
 import           Text.Megaparsec
-import           Text.Megaparsec.Text
-import qualified Text.Megaparsec.Lexer as L
+import           Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 
 import           Mental.Name
+
+type Parser = Parsec Void Text
 
 reservedWords :: [Text]
 reservedWords =
@@ -24,17 +26,17 @@ reservedWords =
   ]
 
 scn, sc :: Parser ()
-scn       = L.space (void spaceChar) (L.skipLineComment "--") empty
+scn       = L.space (void space1) (L.skipLineComment "--") empty
 sc        = L.space (void (oneOf ("\t " :: [Char]))) (L.skipLineComment "--") empty
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
 integer :: Parser Integer
-integer = lexeme L.integer
+integer = lexeme L.decimal
 
 symbol :: Text -> Parser Text
-symbol s = T.pack <$> L.symbol sc (T.unpack s)
+symbol = L.symbol sc
 
 lambda, equal, arrow, fatArrow, unit :: Parser ()
 lambda   = void $ symbol "\\"
@@ -62,7 +64,7 @@ prim :: Text -> Parser ()
 prim w = reserved ("#" <> w)
 
 text :: Text -> Parser Text
-text t = T.pack <$> string (T.unpack t)
+text = string
 
 text' :: Text -> Parser ()
 text' = void . text

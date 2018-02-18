@@ -1,16 +1,14 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes        #-}
 
 module Mental.Parser where
 
-import           Protolude hiding (try)
+import           Protolude              hiding (try)
 
-import           Data.Foldable (foldl')
-import           Control.Comonad.Cofree (Cofree(..))
+import           Control.Comonad.Cofree (Cofree (..))
+import           Data.Foldable          (foldl')
 
 import           Text.Megaparsec
-import           Text.Megaparsec.Text
 
 import           Mental.Decl
 import           Mental.Lexer
